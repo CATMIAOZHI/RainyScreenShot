@@ -141,3 +141,40 @@ shell 28889 (sh)          cmdline = sh -c "cd ... && screenrecord ... rainy_pgre
 ---
 
 *实测时间：2026-09-05 · 雨晴喵 · 规划阶段*
+
+---
+
+## §11 本机构建环境的 git 行为（2026-09-05 实测）
+
+**背景**：首次 commit 遇到 `invalid object` 失败。经 RainyToken 对照实验确认：**工作区内直接 `.git` 结构完全可用**（RainyToken 同款常态），失败与目录位置无关。
+
+### 现象与机制
+
+- Operit 工作区同步系统会拦截 git 写入的 loose object：真实内容落为 `.git/objects/xx/.l2s.tmp_obj_XXXXX.0001`（隐藏临时文件），对象路径 `xx/yyyy` 变为**符号链接**指向该临时文件（`/data/user/0/...` 绝对路径视图）。
+- **符号链接是可读的**（内容完整）——只要 `.0001` 临时载体存在，`git cat-file`/`git log`/`git add`/`git commit` 全部正常。
+- 失败的真正触发条件：**对象刚写入、同步系统正在接管/临时载体尚未就位的窗口期**，此时建树读取对象会得到 `invalid object`。实测一次 60 秒轮询（6 轮×10s）内 84 个对象仍全部处于符号链接态、未落定为真实文件——落定周期远大于秒级，**不能用「等待落定」作为可靠策略**。
+- `git fsck --strict` 会把 `.l2s.tmp_obj_*` 临时文件报为 `bad sha1 file`（垃圾提示），**fsck 退出码仍为 0**，不代表对象损坏。
+
+### 有效的可靠提交策略（已验证）
+
+**策略 A（本次采用，最稳）：pack 传输绕过 loose object 写入**
+```bash
+# 1) 在 /root（proot rootfs）建裸仓库提交一次
+git init --separate-git-dir=/root/rainy-repos/X.git -b main .
+git add -A && git commit ... && git tag v0.1.0
+# 2) 回工作区重建 .git 并 fetch —— 对象以 packfile 流式写入 + refs 为真实文件
+rm .git && git init -b main .
+git remote add origin /root/rainy-repos/X.git
+git fetch origin main --tags && git reset --mixed FETCH_HEAD && git remote remove origin
+```
+fetch 的 packfile 写入不触发 loose object 的符号链接接管（验证：fsck 0 错误、refs 为真实文件、log/cat-file 正常）。
+
+**策略 B（备选）：失败即重试**——若直接 `git init . && add && commit` 报 invalid object，`rm -rf .git` 重来，通常第二轮成功（临时载体就位后链路通）。本次实测第二轮在 /root 下直接成功。
+
+### 禁忌（实测教训）
+
+- ❌ **不要 `find .git/objects -name '.l2s.tmp_obj_*' -delete`**——`.0001` 临时载体是符号链接的目标，删掉即断链，所有对象变为不可读（本次第一次诊断后误删，导致 43 个对象全损，只能重建仓库）。
+- ❌ 不要试图在工作区 git 路径下 `mv`/`cp` 手动恢复对象——同步系统对目录内新建文件同样接管。
+- ⚠️ `git init` 默认 `core.bare=false`；若手动 `GIT_DIR=` 初始化裸仓再补 `core.worktree`，git 会拒绝（`core.bare and core.worktree do not make sense`），必须用 `git init --separate-git-dir=... .` 一步到位。
+
+*实测时间：2026-09-05 · 雨晴喵 · git 化阶段*
