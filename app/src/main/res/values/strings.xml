@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">雨晴截屏</string>
+    <string name="tile_screenshot">静默截屏</string>
+    <string name="tile_record">静默录屏</string>
+</resources>
