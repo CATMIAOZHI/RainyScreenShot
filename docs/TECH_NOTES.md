@@ -178,3 +178,24 @@ fetch 的 packfile 写入不触发 loose object 的符号链接接管（验证�
 - ⚠️ `git init` 默认 `core.bare=false`；若手动 `GIT_DIR=` 初始化裸仓再补 `core.worktree`，git 会拒绝（`core.bare and core.worktree do not make sense`），必须用 `git init --separate-git-dir=... .` 一步到位。
 
 *实测时间：2026-09-05 · 雨晴喵 · git 化阶段*
+
+---
+
+## §12 悬浮窗权限经 Shizuku shell 静默授予（2026-09-05 实测）
+
+**需求**：悬浮球 overlay 权限（SYSTEM_ALERT_WINDOW）不跳系统设置页，直接经 Shizuku 获取。
+
+**实测结论**：shell uid 执行 `appops set <pkg> SYSTEM_ALERT_WINDOW allow` 可静默授予。
+
+```bash
+$ appops get com.rainy.screenshot SYSTEM_ALERT_WINDOW   # 初始：ignore
+$ appops set com.rainy.screenshot SYSTEM_ALERT_WINDOW allow   # EXIT=0 ✅
+$ cmd appops get com.rainy.screenshot SYSTEM_ALERT_WINDOW     # allow（生效）
+```
+
+- 应用未安装时也可 set（Android 16 / API 36 实测），安装后 `Settings.canDrawOverlays()` 返回 true。
+- 语义：授予的是 appops 层权限位，`Settings.canDrawOverlays()` 即为复核手段。
+- **App 侧实现**：`ShellExecutor.grantOverlayPermission()`（exec appops set），调用方在授予后必须再用 `Settings.canDrawOverlays(context)` 复核，避免 shell 侧成功但 app 侧未感知。
+- 失败回落：Shizuku 不可用时仍走系统设置页引导（ACTION_MANAGE_OVERLAY_PERMISSION + package: URI）。
+
+*实测时间：2026-09-05 · 雨晴喵 · 阶段 3 权限增强*

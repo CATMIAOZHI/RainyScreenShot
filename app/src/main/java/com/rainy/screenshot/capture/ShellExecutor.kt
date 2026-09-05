@@ -200,4 +200,23 @@ class ShellExecutor @Inject constructor(
      */
     fun outputRootDir(): File =
         appContext.getExternalFilesDir(null) ?: appContext.filesDir
+
+    /**
+     * 通过 Shizuku shell 静默授予本应用悬浮窗权限。
+     *
+     * 实测依据（§12）：shell uid 执行
+     * `appops set <pkg> SYSTEM_ALERT_WINDOW allow` 可绕过系统设置页
+     * 直接授予 overlay 权限（本机 Android 16 / API 36 实测 EXIT=0）。
+     * 返回后 `Settings.canDrawOverlays()` 即返回 true。
+     *
+     * @return 命令执行成功（exit 0）与否。注意：仅代表 shell 侧授予成功，
+     *         应为 app 侧随后用 Settings.canDrawOverlays() 复核。
+     */
+    suspend fun grantOverlayPermission(): Boolean {
+        val pkg = appContext.packageName
+        return runCatching {
+            val result = exec("appops set $pkg SYSTEM_ALERT_WINDOW allow")
+            result.exitCode == 0
+        }.getOrDefault(false)
+    }
 }

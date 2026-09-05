@@ -140,6 +140,17 @@ class SettingsViewModel @Inject constructor(
         settingsStore.setFloatingBallEnabled(enabled)
     }
 
+    /**
+     * 通过 Shizuku shell 静默授予悬浮窗权限（appops set）。
+     * 调用方应先检查 Settings.canDrawOverlays()，未授予且 Shizuku 可用时调用；
+     * 授予失败（Shizuku 不可用等）返回 false，由调用方回落系统设置引导。
+     */
+    fun grantOverlayViaShizuku(onDone: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            onDone(shellExecutor.grantOverlayPermission())
+        }
+    }
+
     fun setScreenshotDisplayId(id: String) = launchEdit {
         settingsStore.setScreenshotConfig(
             screenshotConfig.value.copy(displayId = id.toLongOrNull())
@@ -374,7 +385,7 @@ fun SettingsScreen(
                             style = MaterialTheme.typography.bodyMedium
                         )
                         Text(
-                            "任意界面点击开始/停止录屏，可拖动 · 未授权时会跳系统设置，回来需重新打开开关",
+                            "任意界面点击开始/停止录屏，可拖动 · 权限优先经 Shizuku 静默获取，失败时才跳系统设置",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -385,17 +396,34 @@ fun SettingsScreen(
                             if (enabled &&
                                 !android.provider.Settings.canDrawOverlays(context)
                             ) {
-                                // 无 overlay 权限：引导去系统设置授权；
-                                // 授权回来后需重新打开本开关（B5 修正：如实说明）
-                                viewModel.setFloatingBallEnabled(false)
-                                context.startActivity(
-                                    Intent(
-                                        android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                        android.net.Uri.parse(
-                                            "package:${context.packageName}"
+                                // 先记录用户意图（开关视觉跟随 + 竞态基准），
+                                // 授权结果回来后再按最新意图收尾
+                                viewModel.setFloatingBallEnabled(true)
+                                // 优先走 Shizuku 静默授权（appops set，免跳系统设置）；
+                                // 失败再引导用户去系统设置页手动授权
+                                viewModel.grantOverlayViaShizuku { granted ->
+                                    // 竞态防护（审计记录 3）：异步授权期间用户可能又拨了
+                                    // 开关，迟到的回调不覆盖用户最新意图
+                                    val stillDesired = viewModel.floatingBallEnabled.value
+                                    if (granted &&
+                                        stillDesired &&
+                                        android.provider.Settings.canDrawOverlays(context)
+                                    ) {
+                                        FloatingBallService.start(context)
+                                    } else if (stillDesired) {
+                                        // 授权失败或用户仍想要 → 引导系统设置
+                                        viewModel.setFloatingBallEnabled(false)
+                                        context.startActivity(
+                                            Intent(
+                                                android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                                android.net.Uri.parse(
+                                                    "package:${context.packageName}"
+                                                )
+                                            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                         )
-                                    ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                )
+                                    }
+                                    // 用户已关闭开关 → 什么都不做（尊重最新意图）
+                                }
                             } else {
                                 viewModel.setFloatingBallEnabled(enabled)
                                 if (enabled) {
