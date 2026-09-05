@@ -15,6 +15,7 @@ app/build/
 .cxx
 local.properties
 release.jks
+KEYSTORE_CREDENTIALS.txt
 .backup/
 .operit/
 .kotlin/

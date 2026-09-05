@@ -36,13 +36,13 @@ import kotlinx.coroutines.launch
  * 职责：任意界面常驻小圆球。
  * - 单击 = 弹出快捷菜单：录屏启停 / 立即截屏 / 预览最新截图 / 预览最新视频
  * - 拖动移动位置（限制在屏幕可见范围内，防拖丢）
- * - 极简自绘球面：空闲 = 取景框 + 品牌粉镜头；录制中 = 红色 REC
+ * - 极简自绘球面：空闲 = 樱粉画布 + 草莓粉取景框/镜头；录制中 = 红色 REC
  * - 状态与 RecordingSessionManager 单例联动（多入口一致性）
  */
 class FloatingBallService : Service() {
 
     companion object {
-        private const val BALL_SIZE_DP = 56
+        private const val BALL_SIZE_DP = 48
         private const val PADDING_DP = 8
         private const val MENU_WIDTH_DP = 168
 
@@ -459,7 +459,7 @@ class FloatingBallService : Service() {
             ?.maxByOrNull { it.lastModified() }
     }
 
-    /** 录制中 → 红色 REC；空闲 → 取景框 + 品牌粉镜头。 */
+    /** 录制中 → 红色 REC；空闲 → 樱粉画布 + 草莓粉取景框/镜头。 */
     private fun refreshBallColor(recording: Boolean) {
         (ballView as? BallFaceView)?.setRecording(recording)
     }
@@ -548,26 +548,29 @@ class FloatingBallService : Service() {
 }
 
 /**
- * 悬浮球自绘 View（极简风重设计 v3，纯 Paint 绘制无资源依赖）。
+ * 悬浮球自绘 View（家族配色版 v4，纯 Paint 绘制无资源依赖）。
  *
- * v3 设计（吸取 v2 白球在浅色背景失焦 + 灰阴影显脏的教训）：
- * - 球体：品牌粉主体（微渐变立体），任何壁纸都醒目——悬浮感靠
- *   色相对比而非阴影（灰阴影在浅色背景呈「脏」感，已弃用）
+ * v4 配色（对齐 RainyToken 家族「浅粉画布 + 草莓粉主角」，与启动图标 v3 同构）：
+ * - 球体：樱粉画布微渐变（CherryPinkDeep → 家族画布深端，浅色壁纸上仍可见），
+ *   悬浮感靠白描边 + 内部草莓粉图形的层次，而非阴影
  * - 描边：1.5dp 细白边（浅色/粉色壁纸下的边界保险，不粗不土）
- * - 图形：白色对焦取景框（四角 L 线）+ 中心白圆点——「截取」隐喻
- * - 录制态：球体变红 + 中心白色 REC 方块
+ * - 图形：草莓粉对焦取景框（四角 L 线）+ 中心草莓粉圆点——「截取」隐喻
+ * - 录制态：球体变红 + 中心白色 REC 方块（状态语义，红白强对比）
  *
  * 录制状态变化时 invalidate() 重绘球面。
  */
 private class BallFaceView(context: android.content.Context) : View(context) {
 
-    /** 空闲态品牌粉（草莓粉，与 App 主题呼应）：中心亮 → 边缘深。 */
-    private val pinkCenter = 0xFFFFB1C8.toInt()
-    private val pinkEdge = 0xFFFF7FA0.toInt()
+    /** 空闲态球体樱粉画布（家族画布色：CherryPinkDeep #FFD1DC → 深端 #FFB3C1）：中心亮 → 边缘深。 */
+    private val pinkCenter = 0xFFFFD1DC.toInt()
+    private val pinkEdge = 0xFFFFB3C1.toInt()
 
-    /** 录制态红：中心亮 → 边缘深。 */
+    /** 录制态红（REC 状态语义色，非家族粉系，有意保留）：中心亮 → 边缘深。 */
     private val redCenter = 0xFFF4666F.toInt()
     private val redEdge = 0xFFE9495D.toInt()
+
+    /** 图形主色：草莓粉（StrawberryPink 家族主色，与启动图标前景同源）。 */
+    private val strawberryPink = 0xFFFF85A2.toInt()
 
     /** 图形与描边白。 */
     private val pureWhite = 0xFFFFFFFF.toInt()
@@ -588,7 +591,7 @@ private class BallFaceView(context: android.content.Context) : View(context) {
         val cy = w / 2f
         val radius = w / 2f
 
-        // 1. 球体：品牌粉微渐变（光源正上方，上亮下暗的微妙立体感）
+        // 1. 球体：樱粉画布微渐变（光源正上方，上亮下暗的微妙立体感）
         val facePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             shader = RadialGradient(
                 cx, cy - radius * 0.3f, radius * 1.15f,
@@ -608,13 +611,14 @@ private class BallFaceView(context: android.content.Context) : View(context) {
         canvas.drawCircle(cx, cy, radius - strokePaint.strokeWidth / 2f, strokePaint)
 
         // 3. 对焦取景框：四角 L 线（「截取」隐喻，圆头端点更精致）
+        //    草莓粉主角色（家族「浅粉画布 + 草莓粉主角」层次，与启动图标前景同源）
         val half = w * 0.21f          // 取景框半边长
         val arm = half * 0.75f        // L 线臂长
         val bracketPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
             strokeCap = Paint.Cap.ROUND
             strokeWidth = 2.4f * density
-            color = pureWhite
+            color = strawberryPink
         }
         // 左上角
         canvas.drawLine(cx - half, cy - half + arm, cx - half, cy - half, bracketPaint)
@@ -646,7 +650,7 @@ private class BallFaceView(context: android.content.Context) : View(context) {
         } else {
             val dotRadius = w * 0.085f
             val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = pureWhite
+                color = strawberryPink
                 style = Paint.Style.FILL
             }
             canvas.drawCircle(cx, cy, dotRadius, dotPaint)

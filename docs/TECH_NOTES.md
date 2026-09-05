@@ -20,18 +20,18 @@ usage: screencap [-ahp] [-d display-id] [FILENAME]
    -h: this message
    -a: captures all the active displays. This appends an integer postfix to the FILENAME.
        e.g., FILENAME_0.png, FILENAME_1.png. If both -a and -d are given, it ignores -d.
-   -d: specify the display ID to capture (If the id is not given, it defaults to 4630946338122044307)
+   -d: specify the display ID to capture (If the id is not given, it defaults to the primary display)
        see "dumpsys SurfaceFlinger --display-id" for valid display IDs.
    -p: outputs in png format.
    --hint-for-seamless If set will use the hintForSeamless path in SF
 
-If FILENAME ends with .png it will be saved as a png.
+If FILENAME ends in .png it will be saved as a png.
 If FILENAME is not given, the results will be printed to stdout.
 ```
 
-- 本机默认 display-id：`4630946338122044307`（HWC display 0，port=147，pnpId=QCM）
+- 本机默认 display-id 为长整型硬件 ID（HWC display 0，port=147，pnpId=QCM，值已脱敏）；不同设备不同，运行时用 `dumpsys SurfaceFlinger --display-id` 探测，不硬编码。
 - **stdout 输出路径已验证**：`screencap -p` 无文件名时输出到 stdout，可由 APP 管道接收 → 私有目录写入，全程不经过公共存储。
-- 注意：API 36 上 `screencap -h` 输出到 stderr 且 exit code ≠ 0，解析 help 文本不可靠，用固定参数表。
+- 注意：API 36 上 `screencap -h` 攓不到 help 文本（stderr 输出且 exit code ≠ 0），解析 help 不可靠，用固定参数表。
 
 ## 3. screenrecord 参数（`screenrecord --help` 实测输出）
 
