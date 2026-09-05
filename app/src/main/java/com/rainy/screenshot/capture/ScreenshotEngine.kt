@@ -15,8 +15,8 @@ import kotlinx.coroutines.withContext
  * - 输出到 App 私有外部目录（shell 写 → app 读，实测通畅，TECH_NOTES §6）
  *
  * 悬浮球处理：截屏前隐藏悬浮球（含快捷菜单），截屏后恢复——
- * 否则球和菜单会被拍进截图。所有截屏入口（首页/磁贴/悬浮球/
- * 连拍）都经 [captureTo]，在这里统一处理。
+ * 否则球和菜单会被拍进截图。所有截屏入口（磁贴/悬浮球/
+ * 延时）都经 [captureTo]，在这里统一处理。
  */
 @Singleton
 class ScreenshotEngine @Inject constructor(

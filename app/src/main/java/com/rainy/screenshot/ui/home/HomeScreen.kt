@@ -15,7 +15,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.BurstMode
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.StopCircle
@@ -28,6 +27,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -70,11 +70,20 @@ class HomeViewModel @Inject constructor(
     private val shellExecutor: com.rainy.screenshot.capture.ShellExecutor,
     private val screenshotEngine: com.rainy.screenshot.capture.ScreenshotEngine,
     private val recordingSessionManager: RecordingSessionManager,
-    private val settingsStore: com.rainy.screenshot.data.local.SettingsStore
+    private val settingsStore: com.rainy.screenshot.data.local.SettingsStore,
+    private val floatingBallController: com.rainy.screenshot.overlay.FloatingBallController
 ) : ViewModel() {
 
     val sessionState: StateFlow<RecordingSessionManager.SessionState> =
         recordingSessionManager.state
+
+    /** 悬浮球开关状态（首页开关卡）。 */
+    val floatingBallEnabled = floatingBallController.enabled
+
+    /** 悬浮球开关切换（授权失败经 onNeedManualGrant 引导系统设置页）。 */
+    fun toggleBall(on: Boolean, onNeedManualGrant: () -> Unit) {
+        floatingBallController.toggle(on, onNeedManualGrant)
+    }
 
     /** 环境就绪状态（真实探测，E2 修复） */
     private val _envReady = MutableStateFlow(true)
@@ -86,9 +95,8 @@ class HomeViewModel @Inject constructor(
 
     /**
      * 延迟截屏（阶段 3-4）：等待 [delayMs] 后截一张。
-     * （延时/连拍与已删除的主页单张按钮为平行实现，各自读
-     * 持久化截屏参数——主页单张按钮已删，用户截屏走磁贴/
-     * 悬浮球，主页延时/连拍保留参数化入口）
+     * （读持久化截屏参数。用户截屏主入口走磁贴/悬浮球，
+     * 主页延时保留参数化入口；连拍入口已按需求移除）
      */
     fun screenshotDelayed(delayMs: Long, onDone: (Boolean, String) -> Unit) {
         viewModelScope.launch {
@@ -97,25 +105,6 @@ class HomeViewModel @Inject constructor(
                 val config = settingsStore.screenshotConfigFlow.first()
                 screenshotEngine.capture(config)
                 onDone(true, "")
-            } catch (e: Exception) {
-                onDone(false, friendlyError(e))
-            }
-        }
-    }
-
-    /**
-     * 连拍（阶段 3-4）：连续截 [count] 张，间隔 [intervalMs]。
-     */
-    fun screenshotSeries(
-        count: Int,
-        intervalMs: Long,
-        onDone: (Boolean, String) -> Unit
-    ) {
-        viewModelScope.launch {
-            try {
-                val config = settingsStore.screenshotConfigFlow.first()
-                val files = screenshotEngine.captureSeries(config, count, intervalMs)
-                onDone(true, "SERIES:${files.size}")
             } catch (e: Exception) {
                 onDone(false, friendlyError(e))
             }
@@ -278,13 +267,13 @@ fun HomeScreen(
                 )
             }
 
-            // ─── 快捷入口引导（磁贴 + 悬浮球） ───
-            QuickEntryCard(
-                onOpenSettings = onOpenSettings,
-                onOpenHistory = onOpenHistory
+            // ─── 悬浮球开关（首页直达，磁贴指路保留） ───
+            BallSwitchCard(
+                onOpenHistory = onOpenHistory,
+                viewModel = viewModel
             )
 
-            // 延时/连拍（参数化入口，设置页可调）
+            // 延时截屏（参数化入口，设置页可调）
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -312,30 +301,6 @@ fun HomeScreen(
                         }
                     }
                 )
-                CaptureButton(
-                    modifier = Modifier.weight(1f),
-                    icon = {
-                        Icon(
-                            Icons.Filled.BurstMode,
-                            null,
-                            tint = Color.White,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    },
-                    label = "连拍 3 张",
-                    containerColor = MaterialTheme.colorScheme.secondary,
-                    onClick = {
-                        Toast.makeText(context, "连拍 3 张，间隔 1 秒", Toast.LENGTH_SHORT).show()
-                        viewModel.screenshotSeries(3, 1_000L) { ok, msg ->
-                            if (ok) {
-                                val n = msg.removePrefix("SERIES:")
-                                Toast.makeText(context, "连拍完成，成功 $n 张", Toast.LENGTH_SHORT).show()
-                            } else {
-                                Toast.makeText(context, "连拍失败：$msg", Toast.LENGTH_LONG).show()
-                            }
-                        }
-                    }
-                )
             }
 
             // 提示卡
@@ -345,14 +310,17 @@ fun HomeScreen(
 }
 
 /**
- * 快捷入口引导卡：真正的截屏入口在磁贴/悬浮球，
- * 主页只需指路（谁会在主页截屏呢）。
+ * 悬浮球开关卡（首页直达开关，磁贴指路 + 历史入口保留）。
+ * 开关逻辑统一走 FloatingBallController（与设置页/冷启动同源）。
  */
 @Composable
-private fun QuickEntryCard(
-    onOpenSettings: () -> Unit,
-    onOpenHistory: () -> Unit
+private fun BallSwitchCard(
+    onOpenHistory: () -> Unit,
+    viewModel: HomeViewModel
 ) {
+    val context = LocalContext.current
+    val enabled by viewModel.floatingBallEnabled.collectAsState()
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -361,15 +329,42 @@ private fun QuickEntryCard(
         shape = RoundedCornerShape(20.dp)
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "悬浮球",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        if (enabled) "已开启 · 任意界面可截屏/录屏/预览"
+                        else "关闭中 · 开启后任意界面可用",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                }
+                Switch(
+                    checked = enabled,
+                    onCheckedChange = { on ->
+                        viewModel.toggleBall(on) {
+                            // Shizuku 授权失败 → 引导系统设置页
+                            context.startActivity(
+                                android.content.Intent(
+                                    android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                    android.net.Uri.parse("package:${context.packageName}")
+                                ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                            )
+                        }
+                    }
+                )
+            }
+            Spacer(Modifier.height(8.dp))
             Text(
-                "快捷入口",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSecondaryContainer
-            )
-            Spacer(Modifier.height(6.dp))
-            Text(
-                "• 截屏用磁贴：下拉通知栏编辑磁贴，添加「截屏」「录屏」\n" +
-                "• 或开悬浮球：设置页开启后任意界面可用，含立即截屏/预览\n" +
+                "• 截屏/录屏也可用磁贴：下拉通知栏编辑磁贴添加\n" +
                 "• 产出在历史页可预览、分享",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSecondaryContainer
@@ -379,12 +374,6 @@ private fun QuickEntryCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                TextButton(
-                    onClick = onOpenSettings,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("去设置开悬浮球")
-                }
                 TextButton(
                     onClick = onOpenHistory,
                     modifier = Modifier.weight(1f)
