@@ -3,7 +3,11 @@ package com.rainy.screenshot.overlay
 import android.annotation.SuppressLint
 import android.app.Service
 import android.content.Intent
+import android.graphics.Canvas
+import android.graphics.Paint
 import android.graphics.PixelFormat
+import android.graphics.RadialGradient
+import android.graphics.Shader
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.IBinder
@@ -22,6 +26,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -29,8 +34,9 @@ import kotlinx.coroutines.launch
  * 悬浮控制球（阶段 3）。
  *
  * 职责：任意界面常驻小圆球。
- * - 单击 = 弹出快捷菜单：录屏启停 / 预览最新截图 / 预览最新视频
- * - 拖动移动位置；录制中变红点，空闲变樱粉
+ * - 单击 = 弹出快捷菜单：录屏启停 / 立即截屏 / 预览最新截图 / 预览最新视频
+ * - 拖动移动位置（限制在屏幕可见范围内，防拖丢）
+ * - 极简自绘球面：空闲 = 取景框 + 品牌粉镜头；录制中 = 红色 REC
  * - 状态与 RecordingSessionManager 单例联动（多入口一致性）
  */
 class FloatingBallService : Service() {
@@ -71,6 +77,9 @@ class FloatingBallService : Service() {
     /** 状态流订阅（time-limit 自动结束/他处停止时球色同步）。 */
     private var stateJob: kotlinx.coroutines.Job? = null
 
+    /** addView 重试任务（权限晚到场景）。 */
+    private var retryJob: kotlinx.coroutines.Job? = null
+
     /** 菜单因外部点击收起的时刻（防「点球收菜单→OUTSIDE+toggle 双触发又弹出」）。 */
     private var outsideDismissAt = 0L
 
@@ -98,18 +107,13 @@ class FloatingBallService : Service() {
         com.rainy.screenshot.capture.BallHiderRegistry.register(ballHider)
     }
 
-    /** 创建圆球 View（简易绘制，无 Compose overlay 依赖）。 */
+    /** 创建圆球 View（BallFaceView 自绘极简图形，无 Compose overlay 依赖）。 */
     private fun createBallView(): View {
         val density = resources.displayMetrics.density
         val size = (BALL_SIZE_DP * density).toInt()
         val pad = (PADDING_DP * density).toInt()
 
-        val view = View(this)
-        val bg = GradientDrawable()
-        bg.shape = GradientDrawable.OVAL
-        bg.setColor(0xFFFF85A2.toInt()) // 草莓粉
-        bg.setStroke((3 * density).toInt(), 0xFFFFFFFF.toInt())
-        view.background = bg
+        val view = BallFaceView(this)
 
         // 拖动 + 单击（区分阈值 8px）
         view.setOnTouchListener { v, event ->
@@ -120,6 +124,7 @@ class FloatingBallService : Service() {
                     initialY = event.rawY.toInt()
                     lastX = initialX
                     lastY = initialY
+                    v.alpha = 0.88f // 按压反馈
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
@@ -142,6 +147,7 @@ class FloatingBallService : Service() {
                     true
                 }
                 MotionEvent.ACTION_UP -> {
+                    v.alpha = 1f
                     // 350ms 内点球导致菜单 OUTSIDE 收起 → 本次 UP 只消费不切换
                     //（否则会「收起后立刻又弹出」）
                     if (!isDragging) {
@@ -152,6 +158,10 @@ class FloatingBallService : Service() {
                         }
                     }
                     v.performClick()
+                    true
+                }
+                MotionEvent.ACTION_CANCEL -> {
+                    v.alpha = 1f
                     true
                 }
                 else -> false
@@ -185,13 +195,72 @@ class FloatingBallService : Service() {
     @SuppressLint("InflateParams")
     private fun addToWindow() {
         val params = ballView.tag as WindowManager.LayoutParams
-        runCatching { windowManager.addView(ballView, params) }
+        val ok = runCatching { windowManager.addView(ballView, params) }.isSuccess
+        if (ok) {
+            isBallInWindow = true
+            retryJob?.cancel()
+            retryJob = null
+        } else {
+            // 权限晚到场景：启动时 appops 未生效 addView 被拒——
+            // 轮询重试直到加窗成功（权限经 Shizuku 授予后即出现）
+            startAddViewRetry()
+        }
+    }
+
+    /**
+     * addView 重试：每 2s 检查一次，最长 30s。
+     * 权限到位（appops 生效 / 用户系统设置手动开）即成功加窗；
+     * 超时不死循环，静默放弃（下次开关操作/启动重新触发）。
+     */
+    private fun startAddViewRetry() {
+        retryJob?.cancel()
+        retryJob = scope.launch {
+            var elapsed = 0
+            while (elapsed < 30_000) {
+                delay(2_000)
+                elapsed += 2_000
+                if (!android.provider.Settings.canDrawOverlays(this@FloatingBallService)) {
+                    continue
+                }
+                val params = ballView.tag as WindowManager.LayoutParams
+                val ok = runCatching { windowManager.addView(ballView, params) }.isSuccess
+                if (ok) {
+                    isBallInWindow = true
+                    break
+                }
+            }
+        }
+    }
+
+    /** 拖动范围限制：球整体始终留在屏幕可见区域内，防止把球拖丢。 */
+    private fun clampBallPosition(x: Int, y: Int): Pair<Int, Int> {
+        val ballPx = (BALL_SIZE_DP * resources.displayMetrics.density).toInt()
+        // 统一尺寸源：R+ 用 maximumWindowMetrics（全屏，含系统栏），旧 API 回退
+        val screenW: Int
+        val screenH: Int
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val bounds = (getSystemService(WINDOW_SERVICE) as WindowManager)
+                .maximumWindowMetrics.bounds
+            screenW = bounds.width()
+            screenH = bounds.height()
+        } else {
+            @Suppress("DEPRECATION")
+            screenW = resources.displayMetrics.widthPixels
+            @Suppress("DEPRECATION")
+            screenH = resources.displayMetrics.heightPixels
+        }
+        // Gravity.END 坐标系（与 showMenu 的 ballAbsLeft 反演同源）：
+        // x = 屏幕右缘到球右缘的距离 → 全可见区间 [0, screenW - ballPx]
+        val clampedX = x.coerceIn(0, (screenW - ballPx).coerceAtLeast(0))
+        val clampedY = y.coerceIn(0, (screenH - ballPx).coerceAtLeast(0))
+        return Pair(clampedX, clampedY)
     }
 
     private fun updatePosition(x: Int, y: Int) {
         val params = ballView.tag as WindowManager.LayoutParams
-        params.x = x
-        params.y = y
+        val (cx, cy) = clampBallPosition(x, y)
+        params.x = cx
+        params.y = cy
         runCatching { windowManager.updateViewLayout(ballView, params) }
     }
 
@@ -372,15 +441,22 @@ class FloatingBallService : Service() {
             ?.maxByOrNull { it.lastModified() }
     }
 
-    /** 录制中 → 红点；空闲 → 草莓粉。 */
+    /** 录制中 → 红色 REC；空闲 → 取景框 + 品牌粉镜头。 */
     private fun refreshBallColor(recording: Boolean) {
-        val bg = ballView.background as? GradientDrawable ?: return
-        bg.setColor(
-            if (recording) 0xFFE91E63.toInt() else 0xFFFF85A2.toInt()
-        )
+        (ballView as? BallFaceView)?.setRecording(recording)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // 重启/开关重触发场景：球不在窗且权限已到位 → 立即补加窗
+        if (!isBallInWindow && android.provider.Settings.canDrawOverlays(this)) {
+            val params = ballView.tag as WindowManager.LayoutParams
+            val ok = runCatching { windowManager.addView(ballView, params) }.isSuccess
+            if (ok) {
+                isBallInWindow = true
+                retryJob?.cancel()
+                retryJob = null
+            }
+        }
         refreshBallColor(
             app.recordingSessionManager.currentState()
                 is RecordingSessionManager.SessionState.Recording
@@ -407,11 +483,16 @@ class FloatingBallService : Service() {
     /** 实际隐藏/恢复逻辑（必须主线程：WindowManager addView/removeView）。 */
     private fun setBallHiddenInternal(hidden: Boolean) {
         if (hidden) {
+            // 截屏窗口期暂停重试（防止 tick 恰好把球加回来拍进截图）
+            retryJob?.cancel()
+            retryJob = null
             dismissMenu()
             runCatching { windowManager.removeView(ballView) }
             isBallInWindow = false
         } else {
             if (!isBallInWindow) {
+                // E2 修复：隐藏期间 UP/CANCEL 丢失 → alpha 可能残留 0.88，重置
+                ballView.alpha = 1f
                 runCatching {
                     windowManager.addView(
                         ballView,
@@ -434,9 +515,117 @@ class FloatingBallService : Service() {
         instance = null
         com.rainy.screenshot.capture.BallHiderRegistry.unregister(ballHider)
         stateJob?.cancel()
+        retryJob?.cancel()
         dismissMenu()
         scope.cancel()
         runCatching { windowManager.removeView(ballView) }
         super.onDestroy()
+    }
+}
+
+/**
+ * 悬浮球自绘 View（极简风重设计 v3，纯 Paint 绘制无资源依赖）。
+ *
+ * v3 设计（吸取 v2 白球在浅色背景失焦 + 灰阴影显脏的教训）：
+ * - 球体：品牌粉主体（微渐变立体），任何壁纸都醒目——悬浮感靠
+ *   色相对比而非阴影（灰阴影在浅色背景呈「脏」感，已弃用）
+ * - 描边：1.5dp 细白边（浅色/粉色壁纸下的边界保险，不粗不土）
+ * - 图形：白色对焦取景框（四角 L 线）+ 中心白圆点——「截取」隐喻
+ * - 录制态：球体变红 + 中心白色 REC 方块
+ *
+ * 录制状态变化时 invalidate() 重绘球面。
+ */
+private class BallFaceView(context: android.content.Context) : View(context) {
+
+    /** 空闲态品牌粉（草莓粉，与 App 主题呼应）：中心亮 → 边缘深。 */
+    private val pinkCenter = 0xFFFFB1C8.toInt()
+    private val pinkEdge = 0xFFFF7FA0.toInt()
+
+    /** 录制态红：中心亮 → 边缘深。 */
+    private val redCenter = 0xFFF4666F.toInt()
+    private val redEdge = 0xFFE9495D.toInt()
+
+    /** 图形与描边白。 */
+    private val pureWhite = 0xFFFFFFFF.toInt()
+
+    @Volatile
+    private var recording = false
+
+    fun setRecording(recording: Boolean) {
+        if (this.recording == recording) return
+        this.recording = recording
+        postInvalidateOnAnimation()
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        val density = resources.displayMetrics.density
+        val w = width.toFloat()
+        val cx = w / 2f
+        val cy = w / 2f
+        val radius = w / 2f
+
+        // 1. 球体：品牌粉微渐变（光源正上方，上亮下暗的微妙立体感）
+        val facePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = RadialGradient(
+                cx, cy - radius * 0.3f, radius * 1.15f,
+                if (recording) redCenter else pinkCenter,
+                if (recording) redEdge else pinkEdge,
+                Shader.TileMode.CLAMP
+            )
+        }
+        canvas.drawCircle(cx, cy, radius, facePaint)
+
+        // 2. 细白描边：浅色/粉色壁纸下的边界保险
+        val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 1.5f * density
+            color = pureWhite
+        }
+        canvas.drawCircle(cx, cy, radius - strokePaint.strokeWidth / 2f, strokePaint)
+
+        // 3. 对焦取景框：四角 L 线（「截取」隐喻，圆头端点更精致）
+        val half = w * 0.21f          // 取景框半边长
+        val arm = half * 0.75f        // L 线臂长
+        val bracketPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeCap = Paint.Cap.ROUND
+            strokeWidth = 2.4f * density
+            color = pureWhite
+        }
+        // 左上角
+        canvas.drawLine(cx - half, cy - half + arm, cx - half, cy - half, bracketPaint)
+        canvas.drawLine(cx - half, cy - half, cx - half + arm, cy - half, bracketPaint)
+        // 右上角
+        canvas.drawLine(cx + half - arm, cy - half, cx + half, cy - half, bracketPaint)
+        canvas.drawLine(cx + half, cy - half, cx + half, cy - half + arm, bracketPaint)
+        // 左下角
+        canvas.drawLine(cx - half, cy + half - arm, cx - half, cy + half, bracketPaint)
+        canvas.drawLine(cx - half, cy + half, cx - half + arm, cy + half, bracketPaint)
+        // 右下角
+        canvas.drawLine(cx + half - arm, cy + half, cx + half, cy + half, bracketPaint)
+        canvas.drawLine(cx + half, cy + half, cx + half, cy + half - arm, bracketPaint)
+
+        // 4. 中心元素：镜头圆点（空闲）/ REC 方块（录制中）
+        if (recording) {
+            // REC 方块缩至 0.17w：与四角线（0.21w）保持视觉间隙，
+            // 避免白色笔画相连合并（审计体验级 1）
+            val side = w * 0.17f
+            val recPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = pureWhite
+                style = Paint.Style.FILL
+            }
+            canvas.drawRoundRect(
+                cx - side, cy - side, cx + side, cy + side,
+                2.5f * density, 2.5f * density,
+                recPaint
+            )
+        } else {
+            val dotRadius = w * 0.085f
+            val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = pureWhite
+                style = Paint.Style.FILL
+            }
+            canvas.drawCircle(cx, cy, dotRadius, dotPaint)
+        }
     }
 }

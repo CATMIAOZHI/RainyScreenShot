@@ -53,7 +53,6 @@ import com.rainy.screenshot.capture.ScreenshotConfig
 import com.rainy.screenshot.capture.ScreenshotFormat
 import com.rainy.screenshot.capture.ShellExecutor
 import com.rainy.screenshot.data.local.SettingsStore
-import com.rainy.screenshot.overlay.FloatingBallService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -75,7 +74,8 @@ data class EnvStatus(
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val shellExecutor: ShellExecutor,
-    private val settingsStore: SettingsStore
+    private val settingsStore: SettingsStore,
+    private val floatingBallController: com.rainy.screenshot.overlay.FloatingBallController
 ) : ViewModel() {
 
     private val _env = MutableStateFlow(
@@ -94,7 +94,7 @@ class SettingsViewModel @Inject constructor(
             viewModelScope, SharingStarted.Eagerly, ScreenshotConfig.DEFAULT
         )
 
-    /** 悬浮球开关（DataStore 持久化） */
+    /** 悬浮球开关（SharedPreferences 持久化，B1 修复） */
     val floatingBallEnabled: StateFlow<Boolean> =
         settingsStore.floatingBallEnabledFlow.stateIn(
             viewModelScope, SharingStarted.Eagerly, false
@@ -136,19 +136,9 @@ class SettingsViewModel @Inject constructor(
         settingsStore.setScreenshotConfig(screenshotConfig.value.copy(format = format))
     }
 
-    fun setFloatingBallEnabled(enabled: Boolean) = launchEdit {
-        settingsStore.setFloatingBallEnabled(enabled)
-    }
-
-    /**
-     * 通过 Shizuku shell 静默授予悬浮窗权限（appops set）。
-     * 调用方应先检查 Settings.canDrawOverlays()，未授予且 Shizuku 可用时调用；
-     * 授予失败（Shizuku 不可用等）返回 false，由调用方回落系统设置引导。
-     */
-    fun grantOverlayViaShizuku(onDone: (Boolean) -> Unit) {
-        viewModelScope.launch {
-            onDone(shellExecutor.grantOverlayPermission())
-        }
+    /** 悬浮球开关切换（统一走 FloatingBallController，与首页/冷启动同源）。 */
+    fun toggleBall(on: Boolean, onNeedManualGrant: () -> Unit) {
+        floatingBallController.toggle(on, onNeedManualGrant)
     }
 
     fun setScreenshotDisplayId(id: String) = launchEdit {
@@ -393,44 +383,17 @@ fun SettingsScreen(
                     Switch(
                         checked = floatingBallEnabled,
                         onCheckedChange = { enabled ->
-                            if (enabled &&
-                                !android.provider.Settings.canDrawOverlays(context)
-                            ) {
-                                // 先记录用户意图（开关视觉跟随 + 竞态基准），
-                                // 授权结果回来后再按最新意图收尾
-                                viewModel.setFloatingBallEnabled(true)
-                                // 优先走 Shizuku 静默授权（appops set，免跳系统设置）；
-                                // 失败再引导用户去系统设置页手动授权
-                                viewModel.grantOverlayViaShizuku { granted ->
-                                    // 竞态防护（审计记录 3）：异步授权期间用户可能又拨了
-                                    // 开关，迟到的回调不覆盖用户最新意图
-                                    val stillDesired = viewModel.floatingBallEnabled.value
-                                    if (granted &&
-                                        stillDesired &&
-                                        android.provider.Settings.canDrawOverlays(context)
-                                    ) {
-                                        FloatingBallService.start(context)
-                                    } else if (stillDesired) {
-                                        // 授权失败或用户仍想要 → 引导系统设置
-                                        viewModel.setFloatingBallEnabled(false)
-                                        context.startActivity(
-                                            Intent(
-                                                android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                                android.net.Uri.parse(
-                                                    "package:${context.packageName}"
-                                                )
-                                            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            // 统一走 FloatingBallController（与首页开关/冷启动恢复同源）：
+                            // 权限未到先 Shizuku 静默授权，失败才引导系统设置页
+                            viewModel.toggleBall(enabled) {
+                                context.startActivity(
+                                    Intent(
+                                        android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                        android.net.Uri.parse(
+                                            "package:${context.packageName}"
                                         )
-                                    }
-                                    // 用户已关闭开关 → 什么都不做（尊重最新意图）
-                                }
-                            } else {
-                                viewModel.setFloatingBallEnabled(enabled)
-                                if (enabled) {
-                                    FloatingBallService.start(context)
-                                } else {
-                                    FloatingBallService.stop(context)
-                                }
+                                    ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                )
                             }
                         }
                     )

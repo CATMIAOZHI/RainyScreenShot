@@ -1,6 +1,7 @@
 package com.rainy.screenshot.data.local
 
 import android.content.Context
+import android.content.SharedPreferences
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
@@ -31,6 +32,27 @@ private val Context.rainySettingsDataStore: DataStore<Preferences> by preference
  *
  * 约定：空字符串 = 跟随默认值（null 参数），时长 0 = 不限时长。
  */
+/** 悬浮球开关存储（SharedPreferences，B1 修复）。
+ *
+ * 为何不用 DataStore：调试期 pm install -r / force-stop 杀进程频繁，
+ * DataStore 写入中断 → 文件损坏 → ReplaceFileCorruptionHandler 恢复空数据
+ * （真机实锤：preferences_pb 0 字节，开关状态连同全部设置丢失，重启后
+ * 球不自动出现）。SharedPreferences 由系统落盘，commit() 同步写 + 系统
+ * 落盘策略，进程死亡不丢（仅极端断电可能丢最后一次写，可接受）。
+ * 截屏/录屏参数继续用 DataStore（参数丢失只影响一次录制的质量，无
+ * 「功能消失」的体感）。
+ */
+private val Context.ballPrefs: SharedPreferences
+    get() = getSharedPreferences("ball_state", Context.MODE_PRIVATE)
+
+/** 悬浮球开关（SharedPreferences 持久化，进程死亡不丢）。 */
+var Context.floatingBallEnabled: Boolean
+    get() = ballPrefs.getBoolean(KEY, false)
+    set(value) {
+        ballPrefs.edit().putBoolean(KEY, value).commit()
+    }
+private const val KEY = "floating_ball_enabled"
+
 @Singleton
 class SettingsStore @Inject constructor(
     @ApplicationContext private val context: Context
@@ -49,9 +71,6 @@ class SettingsStore @Inject constructor(
         // 截屏
         private val KEY_SS_FORMAT = stringPreferencesKey("ss_format")
         private val KEY_SS_DISPLAY_ID = stringPreferencesKey("ss_display_id")
-
-        // 悬浮球
-        private val KEY_FLOATING_BALL = booleanPreferencesKey("floating_ball_enabled")
 
         /** 码率可选档位（Mbps） */
         val BITRATE_OPTIONS = listOf(1, 4, 8, 12, 16, 24, 32)
@@ -85,9 +104,19 @@ class SettingsStore @Inject constructor(
         )
     }
 
-    /** 悬浮球开关流（默认关闭） */
-    val floatingBallEnabledFlow: Flow<Boolean> = dataStore.data.map { prefs ->
-        prefs[KEY_FLOATING_BALL] ?: false
+    /** 悬浮球开关内存镜像（与 SharedPreferences 真值源同步，供 Compose collect）。 */
+    private val _ballEnabled = kotlinx.coroutines.flow.MutableStateFlow(context.floatingBallEnabled)
+
+    /** 悬浮球开关流。 */
+    val floatingBallEnabledFlow: kotlinx.coroutines.flow.StateFlow<Boolean> = _ballEnabled
+
+    /** 悬浮球开关直读（Application 冷启动等非 Flow 场景）。 */
+    fun isFloatingBallEnabled(): Boolean = context.floatingBallEnabled
+
+    /** 悬浮球开关写入（commit 同步落盘 + 流镜像同步）。 */
+    fun setFloatingBallEnabled(enabled: Boolean) {
+        context.floatingBallEnabled = enabled
+        _ballEnabled.value = enabled
     }
 
     /* ── 写（挂起函数，设置页调用） ── */
@@ -111,13 +140,7 @@ class SettingsStore @Inject constructor(
         }
     }
 
-    suspend fun setFloatingBallEnabled(enabled: Boolean) {
-        dataStore.edit { prefs ->
-            prefs[KEY_FLOATING_BALL] = enabled
-        }
-    }
-
-    /** 全部恢复默认（移除所有自定义键）。 */
+    /** 全部恢复默认（移除所有自定义键；悬浮球开关存 SharedPreferences 不受影响）。 */
     suspend fun resetAll() {
         dataStore.edit { it.clear() }
     }

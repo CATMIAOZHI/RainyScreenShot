@@ -1,7 +1,6 @@
 package com.rainy.screenshot
 
 import android.app.Application
-import android.content.Context
 import com.rainy.screenshot.capture.ScreenshotEngine
 import com.rainy.screenshot.data.local.SettingsStore
 import com.rainy.screenshot.session.RecordingSessionManager
@@ -33,21 +32,21 @@ class RainyScreenShotApplication : Application() {
     @Inject
     lateinit var settingsStore: SettingsStore
 
+    @Inject
+    lateinit var floatingBallController: com.rainy.screenshot.overlay.FloatingBallController
+
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     override fun onCreate() {
         super.onCreate()
         // 恢复上次未收尾的录制会话（如有）
         appScope.launch { runCatching { recordingSessionManager.restore() } }
-        // 悬浮球自动恢复：开关开着就拉起服务（不必再进设置页手动开）
-        appScope.launch {
-            val enabled = runCatching {
-                settingsStore.floatingBallEnabledFlow.first()
-            }.getOrDefault(false)
-            if (enabled) {
-                com.rainy.screenshot.overlay.FloatingBallService.start(this@RainyScreenShotApplication)
-            }
-        }
+        // 悬浮球自动恢复：开关开着就拉起服务（不必再进设置页手动开）。
+        // 权限优先经 Shizuku 静默授予（§12 实测：appops set 可绕系统设置页），
+        // 授予有失败/延迟也不阻断——服务侧 addView 重试机制兜底（见
+        // FloatingBallService.startAddViewRetry）。开关状态存于
+        // SharedPreferences，进程死亡不丢（B1 修复，见 SettingsStore.kt）
+        floatingBallController.restoreOnBoot()
     }
 }
 
