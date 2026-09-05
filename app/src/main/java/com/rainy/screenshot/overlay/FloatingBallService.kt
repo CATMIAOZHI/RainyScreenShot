@@ -13,6 +13,7 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.Toast
 import com.rainy.screenshot.recordingSessionManager
+import com.rainy.screenshot.screenshotQuick
 import com.rainy.screenshot.settingsStore
 import com.rainy.screenshot.session.RecordingSessionManager
 import com.rainy.screenshot.ui.preview.PreviewActivity
@@ -38,6 +39,10 @@ class FloatingBallService : Service() {
         private const val BALL_SIZE_DP = 56
         private const val PADDING_DP = 8
         private const val MENU_WIDTH_DP = 168
+
+        /** 运行实例（BallHider 实现转发用；服务未启动时为 null）。 */
+        @Volatile
+        private var instance: FloatingBallService? = null
 
         /** 启动/停止悬浮球 */
         fun start(context: android.content.Context) {
@@ -77,12 +82,20 @@ class FloatingBallService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    /** BallHider 实现（unregister 时按同一实例匹配）。 */
+    private val ballHider = com.rainy.screenshot.capture.BallHider { hidden ->
+        setBallHidden(hidden)
+    }
+
     @SuppressLint("ClickableViewAccessibility")
     override fun onCreate() {
         super.onCreate()
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         ballView = createBallView()
         addToWindow()
+        instance = this
+        // 注册悬浮球隐藏实现（ScreenshotEngine 截屏窗口期调用）
+        com.rainy.screenshot.capture.BallHiderRegistry.register(ballHider)
     }
 
     /** 创建圆球 View（简易绘制，无 Compose overlay 依赖）。 */
@@ -217,6 +230,7 @@ class FloatingBallService : Service() {
 
         val items = listOf(
             if (recording) "■ 停止录屏" else "● 开始录屏",
+            "📸 立即截屏",
             "🖼 预览最新截图",
             "🎬 预览最新视频"
         )
@@ -230,8 +244,9 @@ class FloatingBallService : Service() {
             item.setOnClickListener {
                 when (index) {
                     0 -> toggleRecording()
-                    1 -> openLatestImage()
-                    2 -> openLatestVideo()
+                    1 -> quickScreenshot()
+                    2 -> openLatestImage()
+                    3 -> openLatestVideo()
                 }
                 dismissMenu()
             }
@@ -314,6 +329,16 @@ class FloatingBallService : Service() {
         }
     }
 
+    /** 立即截屏（Application.screenshotQuick，与磁贴同链路；悬浮球自身已隐藏不入境）。 */
+    private fun quickScreenshot() {
+        scope.launch {
+            val ok = runCatching { app.screenshotQuick() }.getOrElse { false }
+            if (!ok) {
+                Toast.makeText(this@FloatingBallService, "截屏失败喵", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     /** 预览最新截图（PNG/RAW，取 Screenshots 目录最新文件）。 */
     private fun openLatestImage() {
         val latest = latestFile(com.rainy.screenshot.capture.ScreenshotEngine.DIR_SCREENSHOTS)
@@ -369,7 +394,45 @@ class FloatingBallService : Service() {
         return START_STICKY
     }
 
+    /** 截屏窗口期隐藏/恢复球与菜单（幂等；任意线程可调，内部转主线程）。 */
+    fun setBallHidden(hidden: Boolean) {
+        val main = android.os.Looper.getMainLooper()
+        if (android.os.Looper.myLooper() === main) {
+            setBallHiddenInternal(hidden)
+        } else {
+            android.os.Handler(main).post { setBallHiddenInternal(hidden) }
+        }
+    }
+
+    /** 实际隐藏/恢复逻辑（必须主线程：WindowManager addView/removeView）。 */
+    private fun setBallHiddenInternal(hidden: Boolean) {
+        if (hidden) {
+            dismissMenu()
+            runCatching { windowManager.removeView(ballView) }
+            isBallInWindow = false
+        } else {
+            if (!isBallInWindow) {
+                runCatching {
+                    windowManager.addView(
+                        ballView,
+                        ballView.tag as WindowManager.LayoutParams
+                    )
+                }
+                isBallInWindow = true
+            }
+            refreshBallColor(
+                app.recordingSessionManager.currentState()
+                    is RecordingSessionManager.SessionState.Recording
+            )
+        }
+    }
+
+    /** 球当前是否在窗口中（hide 后 false，show 后恢复 true）。 */
+    private var isBallInWindow = true
+
     override fun onDestroy() {
+        instance = null
+        com.rainy.screenshot.capture.BallHiderRegistry.unregister(ballHider)
         stateJob?.cancel()
         dismissMenu()
         scope.cancel()

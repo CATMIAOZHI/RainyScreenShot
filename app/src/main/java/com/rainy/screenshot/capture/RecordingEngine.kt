@@ -1,5 +1,6 @@
 package com.rainy.screenshot.capture
 
+import android.util.Log
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -194,7 +195,7 @@ class RecordingEngine @Inject constructor(
                 ProcessStatus.DEAD -> {
                     // N1：进程已不存在（time-limit 刚结束）→ 按成功收尾
                     active = null
-                    waitForFinalize(session.outputFile)
+                    finalizeOutput(session.outputFile)
                     releaseShellProcess()
                     return@withLock session
                 }
@@ -214,7 +215,7 @@ class RecordingEngine @Inject constructor(
         active = null
 
         // 等待收尾完成（文件不再增长）
-        waitForFinalize(session.outputFile)
+        finalizeOutput(session.outputFile)
 
         // B6 修复：收尾后复核进程状态
         if (probeProcess(session.pid) == ProcessStatus.ALIVE) {
@@ -303,6 +304,32 @@ class RecordingEngine @Inject constructor(
             error("unreachable")
         }
 
+    /**
+     * 定稿输出文件（stop / 自动收尾共用）：
+     * 1. 等待 mp4 收尾完成（文件大小连续两次相同）
+     * 2. chmod 660：shell uid 创建的文件默认 600，app uid 经
+     *    ext_data_rw 组可读 660（实测 PNG 660 可读、mp4 600 不可读，
+     *    录屏无法播放的根因）——权限对齐后 app 内播放/缩略图可用
+     */
+    private suspend fun finalizeOutput(file: File) {
+        waitForFinalize(file)
+
+        // chmod 660（失败重试一次；再失败 Log 记录——不中断收尾，
+        // 但留排查线索：shell 环境劣化时 600 文件可定位）
+        runCatching {
+            shellExecutor.exec("chmod 660 '${file.absolutePath}'", timeoutMs = 2_000L)
+        }.onFailure {
+            runCatching {
+                shellExecutor.exec("chmod 660 '${file.absolutePath}'", timeoutMs = 2_000L)
+            }.onFailure {
+                Log.w(
+                    "RainyRec",
+                    "chmod 660 failed after retry: ${file.absolutePath}", it
+                )
+            }
+        }
+    }
+
     /** 等待 mp4 定稿（文件大小连续两次相同，最长 [FINALIZE_TIMEOUT_MS]）。 */
     private suspend fun waitForFinalize(file: File) {
         var lastSize = -1L
@@ -360,6 +387,9 @@ class RecordingEngine @Inject constructor(
                             } else {
                                 null // 正常到时收尾
                             }
+                            // 权限定稿（time-limit 自动收尾路径，P1 修复：
+                            // 此路径不经 stop()，文件停留 600 时 app 读不了）
+                            finalizeOutput(session.outputFile)
                             exitListener?.onProcessExit(session, reason)
                         }
                         return@launch

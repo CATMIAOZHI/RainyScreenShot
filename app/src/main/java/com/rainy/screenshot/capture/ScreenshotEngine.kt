@@ -4,6 +4,7 @@ import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 /**
  * 静默截屏引擎（screencap 封装）。
@@ -12,6 +13,10 @@ import kotlinx.coroutines.delay
  * - shell uid 直调 /system/bin/screencap，不经 MediaProjection，
  *   前台 App 无任何可感知信号（无弹窗、无回调、无状态栏图标）
  * - 输出到 App 私有外部目录（shell 写 → app 读，实测通畅，TECH_NOTES §6）
+ *
+ * 悬浮球处理：截屏前隐藏悬浮球（含快捷菜单），截屏后恢复——
+ * 否则球和菜单会被拍进截图。所有截屏入口（首页/磁贴/悬浮球/
+ * 连拍）都经 [captureTo]，在这里统一处理。
  */
 @Singleton
 class ScreenshotEngine @Inject constructor(
@@ -21,6 +26,35 @@ class ScreenshotEngine @Inject constructor(
     companion object {
         const val DIR_SCREENSHOTS = "Screenshots"
         const val PREFIX_SCREENSHOT = "rainy_ss"
+    }
+
+    /** 悬浮球隐藏嵌套计数（captureSeries 整组包裹 + captureTo 单张包裹防闪烁）。 */
+    private val hideDepth = java.util.concurrent.atomic.AtomicInteger(0)
+
+    /**
+     * 隐藏悬浮球（截屏窗口期；主线程调度，嵌套计数）。
+     * 第 1 层隐藏；内层调用幂等跳过。
+     * NonCancellable：协程取消路径（磁贴/页面销毁）清理不失效。
+     */
+    private suspend fun hideBall() {
+        if (hideDepth.getAndIncrement() == 0) {
+            withContext(kotlinx.coroutines.NonCancellable + kotlinx.coroutines.Dispatchers.Main.immediate) {
+                BallHiderRegistry.hide()
+            }
+        }
+    }
+
+    /**
+     * 恢复悬浮球（截屏完成；归零才真正恢复）。
+     * NonCancellable：finally 清理在已取消协程上仍执行（官方契约）。
+     */
+    private suspend fun showBall() {
+        if (hideDepth.decrementAndGet() <= 0) {
+            hideDepth.set(0)
+            withContext(kotlinx.coroutines.NonCancellable + kotlinx.coroutines.Dispatchers.Main.immediate) {
+                BallHiderRegistry.show()
+            }
+        }
     }
 
     /**
@@ -64,19 +98,25 @@ class ScreenshotEngine @Inject constructor(
         }
         // RAW：不带 -p（16 字节头 + 裸像素）；PNG：-p
         val pngFlag = if (config.format == ScreenshotFormat.PNG) " -p" else ""
-        val command = "screencap $displayArgs$pngFlag '$path' 1>'/dev/null' 2>&1"
-        val result = shellExecutor.exec(command)
+        // 隐藏悬浮球（含菜单）→ 截屏 → 恢复
+        hideBall()
+        try {
+            val command = "screencap $displayArgs$pngFlag '$path' 1>'/dev/null' 2>&1"
+            val result = shellExecutor.exec(command)
 
-        if (result.exitCode != 0) {
-            throw ShellException.Execution(result.exitCode, result.stderr)
-        }
-        // 校验：PNG 至少 1 字节；RAW 必须 ≥ 16 字节头 + 像素
-        val minSize = if (config.format == ScreenshotFormat.RAW) 16L else 1L
-        if (!target.exists() || target.length() < minSize) {
-            throw ShellException.Execution(
-                -1,
-                "screencap produced no output at $path"
-            )
+            if (result.exitCode != 0) {
+                throw ShellException.Execution(result.exitCode, result.stderr)
+            }
+            // 校验：PNG 至少 1 字节；RAW 必须 ≥ 16 字节头 + 像素
+            val minSize = if (config.format == ScreenshotFormat.RAW) 16L else 1L
+            if (!target.exists() || target.length() < minSize) {
+                throw ShellException.Execution(
+                    -1,
+                    "screencap produced no output at $path"
+                )
+            }
+        } finally {
+            showBall()
         }
         return target
     }
@@ -101,26 +141,32 @@ class ScreenshotEngine @Inject constructor(
         require(count in 1..10) { "count must be 1..10" }
         require(intervalMs >= 500L) { "intervalMs must be >= 500" }
 
-        val results = mutableListOf<File>()
-        val failures = StringBuilder()
-        for (i in 1..count) {
-            val fileName = CaptureFileNamer.timestampName(
-                "${PREFIX_SCREENSHOT}_${i.toString().padStart(2, '0')}",
-                config.fileExtension
-            )
-            val target = shellExecutor.newOutputFile(DIR_SCREENSHOTS, fileName)
-            try {
-                captureTo(target, config)
-                results += target
-            } catch (e: Exception) {
-                if (failures.isNotEmpty()) failures.append("; ")
-                failures.append("第${i}张: ${e.message}")
+        // 整组连拍期间悬浮球保持隐藏（单张 hide/show 会闪烁）
+        hideBall()
+        try {
+            val results = mutableListOf<File>()
+            val failures = StringBuilder()
+            for (i in 1..count) {
+                val fileName = CaptureFileNamer.timestampName(
+                    "${PREFIX_SCREENSHOT}_${i.toString().padStart(2, '0')}",
+                    config.fileExtension
+                )
+                val target = shellExecutor.newOutputFile(DIR_SCREENSHOTS, fileName)
+                try {
+                    captureTo(target, config)
+                    results += target
+                } catch (e: Exception) {
+                    if (failures.isNotEmpty()) failures.append("; ")
+                    failures.append("第${i}张: ${e.message}")
+                }
+                if (i < count) delay(intervalMs)
             }
-            if (i < count) delay(intervalMs)
+            if (results.isEmpty()) {
+                throw ShellException.Execution(-1, "连拍全部失败: $failures")
+            }
+            return results
+        } finally {
+            showBall()
         }
-        if (results.isEmpty()) {
-            throw ShellException.Execution(-1, "连拍全部失败: $failures")
-        }
-        return results
     }
 }
