@@ -17,7 +17,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BurstMode
 import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.StopCircle
 import androidx.compose.material.icons.filled.Timer
@@ -30,6 +29,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -84,21 +84,11 @@ class HomeViewModel @Inject constructor(
         _envReady.value = shellExecutor.isEnvironmentReady()
     }
 
-    fun screenshot(onDone: (Boolean, String) -> Unit) {
-        viewModelScope.launch {
-            try {
-                // 阶段 3：读取设置页持久化的截屏参数（格式 RAW/PNG、display-id）
-                val config = settingsStore.screenshotConfigFlow.first()
-                screenshotEngine.capture(config)
-                onDone(true, "")
-            } catch (e: Exception) {
-                onDone(false, friendlyError(e))
-            }
-        }
-    }
-
     /**
      * 延迟截屏（阶段 3-4）：等待 [delayMs] 后截一张。
+     * （延时/连拍与已删除的主页单张按钮为平行实现，各自读
+     * 持久化截屏参数——主页单张按钮已删，用户截屏走磁贴/
+     * 悬浮球，主页延时/连拍保留参数化入口）
      */
     fun screenshotDelayed(delayMs: Long, onDone: (Boolean, String) -> Unit) {
         viewModelScope.launch {
@@ -259,22 +249,6 @@ fun HomeScreen(
             ) {
                 CaptureButton(
                     modifier = Modifier.weight(1f),
-                    icon = { Icon(Icons.Filled.PhotoCamera, null, tint = Color.White, modifier = Modifier.size(28.dp)) },
-                    label = "静默截屏",
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    onClick = {
-                        Toast.makeText(context, "正在截屏…", Toast.LENGTH_SHORT).show()
-                        viewModel.screenshot(onDone = { ok, msg ->
-                            if (ok) {
-                                Toast.makeText(context, "截屏完成，已存入私有目录", Toast.LENGTH_SHORT).show()
-                            } else {
-                                Toast.makeText(context, "截屏失败：$msg", Toast.LENGTH_LONG).show()
-                            }
-                        })
-                    }
-                )
-                CaptureButton(
-                    modifier = Modifier.weight(1f),
                     icon = {
                         Icon(
                             if (sessionState is RecordingSessionManager.SessionState.Recording)
@@ -304,8 +278,13 @@ fun HomeScreen(
                 )
             }
 
-            // 提示卡
-            // 阶段 3-4：延迟截屏 / 连拍快捷入口
+            // ─── 快捷入口引导（磁贴 + 悬浮球） ───
+            QuickEntryCard(
+                onOpenSettings = onOpenSettings,
+                onOpenHistory = onOpenHistory
+            )
+
+            // 延时/连拍（参数化入口，设置页可调）
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -361,6 +340,58 @@ fun HomeScreen(
 
             // 提示卡
             InfoCard()
+        }
+    }
+}
+
+/**
+ * 快捷入口引导卡：真正的截屏入口在磁贴/悬浮球，
+ * 主页只需指路（谁会在主页截屏呢）。
+ */
+@Composable
+private fun QuickEntryCard(
+    onOpenSettings: () -> Unit,
+    onOpenHistory: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer
+        ),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Text(
+                "快捷入口",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSecondaryContainer
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "• 截屏用磁贴：下拉通知栏编辑磁贴，添加「截屏」「录屏」\n" +
+                "• 或开悬浮球：设置页开启后任意界面可用，含立即截屏/预览\n" +
+                "• 产出在历史页可预览、分享",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSecondaryContainer
+            )
+            Spacer(Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                TextButton(
+                    onClick = onOpenSettings,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("去设置开悬浮球")
+                }
+                TextButton(
+                    onClick = onOpenHistory,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("看历史产出")
+                }
+            }
         }
     }
 }
@@ -478,8 +509,8 @@ private fun InfoCard() {
             Text(
                 "• 截屏/录屏经 Shizuku shell 执行，不经 MediaProjection\n" +
                 "• 无系统弹窗、无状态栏投屏图标、目标 App 无回调\n" +
-                "• 快捷磁贴可在任意界面下拉触发（安全锁屏下除外）\n" +  // E3 修正
-                "• 输出保存在 APP 私有目录，历史页可查看/删除/分享",        // B4 修正
+                "• 快捷磁贴可在任意界面下拉触发（安全锁屏下除外）\n" +
+                "• 输出保存在 APP 私有目录，历史页可预览/分享/删除",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

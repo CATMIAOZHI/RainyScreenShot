@@ -182,6 +182,19 @@ fun HistoryScreen(
                 items(items, key = { it.file.absolutePath }) { item ->
                     CaptureItemCard(
                         item = item,
+                        onOpen = {
+                            // RAW 文件不可预览（16 字节头 + 裸像素），Toast 提示
+                            if (item.isRaw) {
+                                android.widget.Toast.makeText(
+                                    context, "RAW 原始数据无法预览，可分享后用工具转换",
+                                    android.widget.Toast.LENGTH_SHORT
+                                ).show()
+                            } else {
+                                com.rainy.screenshot.ui.preview.PreviewActivity.start(
+                                    context, item.file, item.isVideo
+                                )
+                            }
+                        },
                         onDelete = { confirmDelete = item },
                         onShare = { shareFile(context, item) }
                     )
@@ -214,12 +227,14 @@ fun HistoryScreen(
 @Composable
 private fun CaptureItemCard(
     item: CaptureItem,
+    onOpen: () -> Unit,
     onDelete: () -> Unit,
     onShare: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp)
+        shape = RoundedCornerShape(16.dp),
+        onClick = onOpen
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
@@ -240,6 +255,13 @@ private fun CaptureItemCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                if (!item.isRaw) {
+                    Text(
+                        "点击预览",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
             // 操作：分享 / 删除
             IconButton(onClick = onShare) {

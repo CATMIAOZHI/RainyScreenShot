@@ -39,6 +39,15 @@ class RainyScreenShotApplication : Application() {
         super.onCreate()
         // 恢复上次未收尾的录制会话（如有）
         appScope.launch { runCatching { recordingSessionManager.restore() } }
+        // 悬浮球自动恢复：开关开着就拉起服务（不必再进设置页手动开）
+        appScope.launch {
+            val enabled = runCatching {
+                settingsStore.floatingBallEnabledFlow.first()
+            }.getOrDefault(false)
+            if (enabled) {
+                com.rainy.screenshot.overlay.FloatingBallService.start(this@RainyScreenShotApplication)
+            }
+        }
     }
 }
 
