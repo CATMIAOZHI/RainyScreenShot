@@ -78,6 +78,22 @@
             android:multiprocess="false"
             android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
 
+        <!-- 悬浮控制球（阶段 3：常驻 overlay，点击录屏启停） -->
+        <service
+            android:name=".overlay.FloatingBallService"
+            android:exported="false" />
+
+        <!-- FileProvider：历史页分享截图/录屏（App 私有目录 → content:// URI） -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
     </application>
 
 </manifest>

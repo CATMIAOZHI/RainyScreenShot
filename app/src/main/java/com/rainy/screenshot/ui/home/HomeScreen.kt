@@ -15,10 +15,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BurstMode
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.StopCircle
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -56,16 +58,19 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * 首页 ViewModel：状态桥 + 操作入口。
+ * 首页 ViewModel：状态桥 + 操作入口（阶段 3：操作使用持久化参数）。
  */
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val shellExecutor: com.rainy.screenshot.capture.ShellExecutor,
     private val screenshotEngine: com.rainy.screenshot.capture.ScreenshotEngine,
-    private val recordingSessionManager: RecordingSessionManager
+    private val recordingSessionManager: RecordingSessionManager,
+    private val settingsStore: com.rainy.screenshot.data.local.SettingsStore
 ) : ViewModel() {
 
     val sessionState: StateFlow<RecordingSessionManager.SessionState> =
@@ -82,8 +87,45 @@ class HomeViewModel @Inject constructor(
     fun screenshot(onDone: (Boolean, String) -> Unit) {
         viewModelScope.launch {
             try {
-                screenshotEngine.capture()
+                // 阶段 3：读取设置页持久化的截屏参数（格式 RAW/PNG、display-id）
+                val config = settingsStore.screenshotConfigFlow.first()
+                screenshotEngine.capture(config)
                 onDone(true, "")
+            } catch (e: Exception) {
+                onDone(false, friendlyError(e))
+            }
+        }
+    }
+
+    /**
+     * 延迟截屏（阶段 3-4）：等待 [delayMs] 后截一张。
+     */
+    fun screenshotDelayed(delayMs: Long, onDone: (Boolean, String) -> Unit) {
+        viewModelScope.launch {
+            try {
+                delay(delayMs)
+                val config = settingsStore.screenshotConfigFlow.first()
+                screenshotEngine.capture(config)
+                onDone(true, "")
+            } catch (e: Exception) {
+                onDone(false, friendlyError(e))
+            }
+        }
+    }
+
+    /**
+     * 连拍（阶段 3-4）：连续截 [count] 张，间隔 [intervalMs]。
+     */
+    fun screenshotSeries(
+        count: Int,
+        intervalMs: Long,
+        onDone: (Boolean, String) -> Unit
+    ) {
+        viewModelScope.launch {
+            try {
+                val config = settingsStore.screenshotConfigFlow.first()
+                val files = screenshotEngine.captureSeries(config, count, intervalMs)
+                onDone(true, "SERIES:${files.size}")
             } catch (e: Exception) {
                 onDone(false, friendlyError(e))
             }
@@ -105,7 +147,9 @@ class HomeViewModel @Inject constructor(
                 }
             } else {
                 try {
-                    recordingSessionManager.start()
+                    // 阶段 3：读取设置页持久化的录屏参数（码率/分辨率/时长等）
+                    val config = settingsStore.recordConfigFlow.first().normalized()
+                    recordingSessionManager.start(config)
                     onDone(true, "START")
                 } catch (e: Exception) {
                     onDone(false, friendlyError(e))
@@ -261,6 +305,61 @@ fun HomeScreen(
             }
 
             // 提示卡
+            // 阶段 3-4：延迟截屏 / 连拍快捷入口
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                CaptureButton(
+                    modifier = Modifier.weight(1f),
+                    icon = {
+                        Icon(
+                            Icons.Filled.Timer,
+                            null,
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    },
+                    label = "延时 3s 截屏",
+                    containerColor = MaterialTheme.colorScheme.secondary,
+                    onClick = {
+                        Toast.makeText(context, "3 秒后截屏", Toast.LENGTH_SHORT).show()
+                        viewModel.screenshotDelayed(3_000L) { ok, msg ->
+                            if (ok) {
+                                Toast.makeText(context, "延迟截屏完成", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(context, "延迟截屏失败：$msg", Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    }
+                )
+                CaptureButton(
+                    modifier = Modifier.weight(1f),
+                    icon = {
+                        Icon(
+                            Icons.Filled.BurstMode,
+                            null,
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    },
+                    label = "连拍 3 张",
+                    containerColor = MaterialTheme.colorScheme.secondary,
+                    onClick = {
+                        Toast.makeText(context, "连拍 3 张，间隔 1 秒", Toast.LENGTH_SHORT).show()
+                        viewModel.screenshotSeries(3, 1_000L) { ok, msg ->
+                            if (ok) {
+                                val n = msg.removePrefix("SERIES:")
+                                Toast.makeText(context, "连拍完成，成功 $n 张", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(context, "连拍失败：$msg", Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    }
+                )
+            }
+
+            // 提示卡
             InfoCard()
         }
     }
@@ -380,7 +479,7 @@ private fun InfoCard() {
                 "• 截屏/录屏经 Shizuku shell 执行，不经 MediaProjection\n" +
                 "• 无系统弹窗、无状态栏投屏图标、目标 App 无回调\n" +
                 "• 快捷磁贴可在任意界面下拉触发（安全锁屏下除外）\n" +  // E3 修正
-                "• 输出保存在 APP 私有目录（历史页开发中）",           // E4 修正
+                "• 输出保存在 APP 私有目录，历史页可查看/删除/分享",        // B4 修正
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

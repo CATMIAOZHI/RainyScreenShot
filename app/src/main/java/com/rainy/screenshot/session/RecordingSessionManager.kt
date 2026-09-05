@@ -2,12 +2,14 @@ package com.rainy.screenshot.session
 
 import com.rainy.screenshot.capture.RecordConfig
 import com.rainy.screenshot.capture.RecordingEngine
+import com.rainy.screenshot.data.local.SettingsStore
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 
 /**
  * 录制会话状态机 —— 状态单一来源（B1 修复：engine 退出回调在此迁移状态）。
@@ -19,7 +21,8 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 @Singleton
 class RecordingSessionManager @Inject constructor(
-    private val recordingEngine: RecordingEngine
+    private val recordingEngine: RecordingEngine,
+    private val settingsStore: SettingsStore
 ) {
 
     /** 对外暴露的会话状态。 */
@@ -149,6 +152,9 @@ class RecordingSessionManager @Inject constructor(
     /**
      * 冷启动恢复：APP 重启后，若 shell 侧 screenrecord 仍在跑（APP 被杀场景），
      * 依据磁盘上未定稿的 mp4 文件 + cmdline 校验重建会话状态。
+     *
+     * 阶段 3（N7 边界）：收养时传入当前设置页持久化配置，aliveWatch 的
+     * time-limit 判断与实际录制参数一致，避免自定义时长的会话被误判异常。
      */
     suspend fun restore() {
         if (isRecording) return
@@ -162,8 +168,12 @@ class RecordingSessionManager @Inject constructor(
         val recent = candidates.firstOrNull() ?: return
 
         val pid = recordingEngine.findPidByFile(recent.name) ?: return
+        // N7 边界：restore 使用当前持久化配置（而非 DEFAULT）
+        val config = runCatching {
+            settingsStore.recordConfigFlow.first().normalized()
+        }.getOrDefault(RecordConfig.DEFAULT)
         val adopted = runCatching {
-            recordingEngine.adoptSession(pid, recent)
+            recordingEngine.adoptSession(pid, recent, config)
         }.getOrDefault(false)
         if (adopted) {
             _state.value = SessionState.Recording(

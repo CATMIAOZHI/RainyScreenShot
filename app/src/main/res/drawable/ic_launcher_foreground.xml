@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 雨晴Token 前景 · 雨滴 + 阳光 sparkle + 高光 -->
+<!-- 雨晴截屏 前景 · 屏幕取景框 + 录制红点 + 家族 sparkle -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
@@ -8,48 +8,66 @@
 
     <!--
         配色统一雨晴品牌系：
-        · 水滴：草莓粉 #FF85A2（主品牌色）
-        · sparkle：樱粉 #FFD1DC（浅层次）
-        · 高光：白色
-        · 背景：樱粉渐变 #FFF0F5→#FFD1DC→#FFB3C1
+        · 屏幕描边：草莓粉 #FF85A2（主品牌色）
+        · 取景画面：白色（亮层）+ 樱粉 #FFD1DC（浅层次）
+        · 录制红点：#FF4D6D（录屏语义，白色描边环）
+        · sparkle：樱粉 #FFD1DC（家族延续，RainyToken 同款元素）
     -->
 
-    <!-- 大水滴 · 草莓粉 -->
+    <!-- 屏幕外框 · 圆角矩形描边 · 草莓粉 -->
     <path
-        android:pathData="
-            M54,30
-            Q54,30 44,50
-            Q36,62 40,68
-            Q44,76 54,76
-            Q64,76 68,68
-            Q72,62 64,50
-            Q54,30 54,30Z"
-        android:fillColor="#FF85A2" />
+        android:pathData="M30,26 H78 A8,8 0 0 1 86,34 V68 A8,8 0 0 1 78,76 H30 A8,8 0 0 1 22,68 V34 A8,8 0 0 1 30,26 Z"
+        android:strokeColor="#FF85A2"
+        android:strokeWidth="6"
+        android:strokeLineJoin="round"
+        android:fillColor="@android:color/transparent" />
 
-    <!-- 水滴高光 · 白色椭圆 -->
+    <!-- 取景画面 · 白色小太阳（屏幕内左上） -->
     <path
-        android:pathData="M46,54m-3,0a3,2.5 0,1,1 6,0a3,2.5 0,1,1 -6,0"
+        android:pathData="M40,48m-4.5,0a4.5,4.5 0,1 1,9 0a4.5,4.5 0,1 1,-9 0"
         android:fillColor="#FFFFFF"
+        android:fillAlpha="0.95" />
+
+    <!-- 取景画面 · 远山（白色，屏幕内中下部） -->
+    <path
+        android:pathData="M28,66 L42,52 L52,62 L60,54 L80,66 Z"
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.9" />
+
+    <!-- 取景画面 · 近山（樱粉，叠下层） -->
+    <path
+        android:pathData="M28,72 L48,60 L64,72 Z"
+        android:fillColor="#FFD1DC"
         android:fillAlpha="0.75" />
 
-    <!-- sparkle 小太阳 · 樱粉 · 右上角 (72,32) -->
-    <path android:pathData="M72,22L72,42"
+    <!-- 录制红点 · 白色描边环 + 红芯（屏幕内右上角） -->
+    <path
+        android:pathData="M66,40m-7,0a7,7 0,1 1,14 0a7,7 0,1 1,-14 0"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.5"
+        android:fillColor="@android:color/transparent" />
+    <path
+        android:pathData="M66,40m-3.5,0a3.5,3.5 0,1 1,7 0a3.5,3.5 0,1 1,-7 0"
+        android:fillColor="#FF4D6D" />
+
+    <!-- sparkle 小太阳 · 樱粉 · 屏幕下方中央 · 家族延续（收在安全区 21..87 内） -->
+    <path android:pathData="M54,75L54,87"
         android:strokeColor="#FFD1DC" android:strokeWidth="3"
         android:strokeLineCap="round"
         android:fillColor="@android:color/transparent" />
-    <path android:pathData="M62,32L82,32"
+    <path android:pathData="M47,81L61,81"
         android:strokeColor="#FFD1DC" android:strokeWidth="3"
         android:strokeLineCap="round"
         android:fillColor="@android:color/transparent" />
-    <path android:pathData="M66,26L78,38"
+    <path android:pathData="M50,77.5L58,84.5"
         android:strokeColor="#FFD1DC" android:strokeWidth="2"
         android:strokeLineCap="round"
         android:fillColor="@android:color/transparent" />
-    <path android:pathData="M78,26L66,38"
+    <path android:pathData="M58,77.5L50,84.5"
         android:strokeColor="#FFD1DC" android:strokeWidth="2"
         android:strokeLineCap="round"
         android:fillColor="@android:color/transparent" />
-    <path android:pathData="M72,32m-2.5,0a2.5,2.5 0,1,1 5,0a2.5,2.5 0,1,1 -5,0"
+    <path android:pathData="M54,81m-2.2,0a2.2,2.2 0,1 1,4.4 0a2.2,2.2 0,1 1,-4.4 0"
         android:fillColor="#FFD1DC" />
 
 </vector>

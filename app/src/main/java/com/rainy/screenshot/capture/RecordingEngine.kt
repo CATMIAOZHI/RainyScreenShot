@@ -391,14 +391,24 @@ class RecordingEngine @Inject constructor(
 
     /**
      * 收养一个仍在运行的 shell 侧录制（restore 场景）。
+     *
+     * 阶段 3 修复（N7 边界）：config 不再硬编码 DEFAULT——restore 时
+     * 上层传入当前设置页持久化配置，aliveWatch 的 time-limit 正常收尾
+     * 判断（elapsed < limitMs）才能与实际录制参数一致，否则自定义时长
+     * 会话会被误判为异常退出。
+     *
      * @return 是否成功（已有会话时 false）
      */
-    suspend fun adoptSession(pid: Int, outputFile: File): Boolean = sessionMutex.withLock {
+    suspend fun adoptSession(
+        pid: Int,
+        outputFile: File,
+        config: RecordConfig = RecordConfig.DEFAULT
+    ): Boolean = sessionMutex.withLock {
         if (active != null) return@withLock false
         val session = ActiveRecording(
             pid = pid,
             outputFile = outputFile,
-            config = RecordConfig.DEFAULT,
+            config = config,
             startedAt = outputFile.lastModified()
         )
         active = session

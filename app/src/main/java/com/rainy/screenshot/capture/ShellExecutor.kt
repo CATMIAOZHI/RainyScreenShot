@@ -193,4 +193,11 @@ class ShellExecutor @Inject constructor(
         if (!dir.exists()) dir.mkdirs()
         return File(dir, fileName)
     }
+
+    /**
+     * App 私有外部目录根（历史页扫描用）。
+     * shell uid 与 app uid 对该目录均有读写权（TECH_NOTES §6 实测）。
+     */
+    fun outputRootDir(): File =
+        appContext.getExternalFilesDir(null) ?: appContext.filesDir
 }

@@ -3,11 +3,13 @@ package com.rainy.screenshot.trigger
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 import com.rainy.screenshot.recordingSessionManager
+import com.rainy.screenshot.settingsStore
 import com.rainy.screenshot.session.RecordingSessionManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
@@ -39,7 +41,10 @@ class RecordTileService : TileService() {
                     success = result is RecordingSessionManager.StopResult.Success
                 }
                 else -> {
-                    val outcome = runCatching { manager.start() }
+                    // 阶段 3：磁贴录屏同样使用设置页持久化参数
+                    val config = application.settingsStore
+                        .recordConfigFlow.first().normalized()
+                    val outcome = runCatching { manager.start(config) }
                     success = outcome.isSuccess
                 }
             }

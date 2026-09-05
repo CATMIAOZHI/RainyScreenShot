@@ -3,12 +3,14 @@ package com.rainy.screenshot
 import android.app.Application
 import android.content.Context
 import com.rainy.screenshot.capture.ScreenshotEngine
+import com.rainy.screenshot.data.local.SettingsStore
 import com.rainy.screenshot.session.RecordingSessionManager
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
@@ -28,6 +30,9 @@ class RainyScreenShotApplication : Application() {
     @Inject
     lateinit var screenshotEngine: ScreenshotEngine
 
+    @Inject
+    lateinit var settingsStore: SettingsStore
+
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     override fun onCreate() {
@@ -41,8 +46,13 @@ class RainyScreenShotApplication : Application() {
 val Application.recordingSessionManager: RecordingSessionManager
     get() = (this as RainyScreenShotApplication).recordingSessionManager
 
-/** 截屏快捷入口（磁贴用）。 */
+/** 设置持久化入口（磁贴 / 悬浮球用）。 */
+val Application.settingsStore: SettingsStore
+    get() = (this as RainyScreenShotApplication).settingsStore
+
+/** 截屏快捷入口（磁贴/悬浮球用，阶段 3：读取持久化截屏参数）。 */
 suspend fun Application.screenshotQuick(): Boolean {
-    val engine = (this as RainyScreenShotApplication).screenshotEngine
-    return runCatching { engine.capture(); true }.getOrElse { false }
+    val app = this as RainyScreenShotApplication
+    val config = app.settingsStore.screenshotConfigFlow.first()
+    return runCatching { app.screenshotEngine.capture(config); true }.getOrElse { false }
 }

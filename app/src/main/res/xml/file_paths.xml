@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FileProvider 路径映射：App 私有外部目录（截图/录屏产出去处） -->
+<paths>
+    <!-- Android/data/<pkg>/files 根（Screenshots/、Recordings/ 均在其中） -->
+    <external-files-path
+        name="rainy_output"
+        path="." />
+</paths>
