@@ -74,7 +74,8 @@ data class CaptureItem(
 
 @HiltViewModel
 class HistoryViewModel @Inject constructor(
-    private val shellExecutor: ShellExecutor
+    private val shellExecutor: ShellExecutor,
+    private val recordingSessionManager: com.rainy.screenshot.session.RecordingSessionManager
 ) : ViewModel() {
 
     private val _items = MutableStateFlow<List<CaptureItem>>(emptyList())
@@ -87,22 +88,26 @@ class HistoryViewModel @Inject constructor(
         refresh()
     }
 
-    /** 扫描两个产出目录，合并按修改时间倒序。 */
+    /** 扫描两个产出目录，合并按修改时间倒序（排除正在写入的录制文件）。 */
     fun refresh() {
         viewModelScope.launch {
+            // 正在写入的录制文件（内容未定稿，预览必错、误删=数据丢失）
+            val writing = (recordingSessionManager.currentState()
+                as? com.rainy.screenshot.session.RecordingSessionManager.SessionState.Recording)
+                ?.outputFile?.absolutePath
             val list = withContext(Dispatchers.IO) {
-                scanDir(ScreenshotEngine.DIR_SCREENSHOTS, video = false) +
-                    scanDir(RecordingEngine.DIR_RECORDINGS, video = true)
+                scanDir(ScreenshotEngine.DIR_SCREENSHOTS, video = false, writing) +
+                    scanDir(RecordingEngine.DIR_RECORDINGS, video = true, writing)
             }
             _items.value = list.sortedByDescending { it.file.lastModified() }
         }
     }
 
-    private fun scanDir(subDir: String, video: Boolean): List<CaptureItem> {
+    private fun scanDir(subDir: String, video: Boolean, writing: String?): List<CaptureItem> {
         val dir = File(outputRoot, subDir)
         if (!dir.isDirectory) return emptyList()
         return dir.listFiles()
-            ?.filter { it.isFile && it.length() > 0L }
+            ?.filter { it.isFile && it.length() > 0L && it.absolutePath != writing }
             ?.map { f ->
                 val isRaw = f.extension.equals("raw", ignoreCase = true)
                 CaptureItem(file = f, isVideo = video, isRaw = isRaw)
@@ -274,12 +279,18 @@ private fun CaptureItemCard(
     }
 }
 
-/** 缩略图：PNG 解码显示；视频/RAW 显示类型图标。 */
+/** 缩略图：PNG 异步解码显示；视频/RAW 显示类型图标。 */
 @Composable
 private fun Thumbnail(item: CaptureItem, modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    val bitmap = remember(item.file.absolutePath) {
-        loadThumbnail(context, item.file, maxPx = 120)
+    // 异步解码：remember 组合期同步解码会阻塞主线程（滚动卡顿，审计体验级 9）
+    var bitmap by androidx.compose.runtime.remember(item.file.absolutePath) {
+        androidx.compose.runtime.mutableStateOf<android.graphics.Bitmap?>(null)
+    }
+    androidx.compose.runtime.LaunchedEffect(item.file.absolutePath) {
+        bitmap = withContext(kotlinx.coroutines.Dispatchers.IO) {
+            loadThumbnail(context, item.file, maxPx = 120)
+        }
     }
     Box(
         modifier = modifier,
@@ -287,7 +298,7 @@ private fun Thumbnail(item: CaptureItem, modifier: Modifier = Modifier) {
     ) {
         if (bitmap != null) {
             Image(
-                bitmap = bitmap.asImageBitmap(),
+                bitmap = bitmap!!.asImageBitmap(),
                 contentDescription = item.file.name,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop

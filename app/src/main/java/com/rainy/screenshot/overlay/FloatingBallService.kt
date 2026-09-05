@@ -46,10 +46,6 @@ class FloatingBallService : Service() {
         private const val PADDING_DP = 8
         private const val MENU_WIDTH_DP = 168
 
-        /** 运行实例（BallHider 实现转发用；服务未启动时为 null）。 */
-        @Volatile
-        private var instance: FloatingBallService? = null
-
         /** 启动/停止悬浮球 */
         fun start(context: android.content.Context) {
             // 不用 startForegroundService——强制前台通知违反隐身性红线。
@@ -102,7 +98,6 @@ class FloatingBallService : Service() {
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         ballView = createBallView()
         addToWindow()
-        instance = this
         // 注册悬浮球隐藏实现（ScreenshotEngine 截屏窗口期调用）
         com.rainy.screenshot.capture.BallHiderRegistry.register(ballHider)
     }
@@ -201,6 +196,7 @@ class FloatingBallService : Service() {
             retryJob?.cancel()
             retryJob = null
         } else {
+            isBallInWindow = false
             // 权限晚到场景：启动时 appops 未生效 addView 被拒——
             // 轮询重试直到加窗成功（权限经 Shizuku 授予后即出现）
             startAddViewRetry()
@@ -226,6 +222,7 @@ class FloatingBallService : Service() {
                 val ok = runCatching { windowManager.addView(ballView, params) }.isSuccess
                 if (ok) {
                     isBallInWindow = true
+                    retryJob = null
                     break
                 }
             }
@@ -333,20 +330,41 @@ class FloatingBallService : Service() {
             PixelFormat.TRANSLUCENT
         ).apply {
             val ballParams = ballView.tag as WindowManager.LayoutParams
-            val screenW = resources.displayMetrics.widthPixels
+            // 尺寸源统一：与 clampBallPosition 同源（R+ maximumWindowMetrics，
+            // 旧 API displayMetrics；此前两处混用，审计卫生级 14）
+            val screenW: Int
+            val screenH: Int
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                val bounds = (getSystemService(WINDOW_SERVICE) as WindowManager)
+                    .maximumWindowMetrics.bounds
+                screenW = bounds.width()
+                screenH = bounds.height()
+            } else {
+                @Suppress("DEPRECATION")
+                screenW = resources.displayMetrics.widthPixels
+                @Suppress("DEPRECATION")
+                screenH = resources.displayMetrics.heightPixels
+            }
+            val ballPx = (BALL_SIZE_DP * density).toInt()
             // x 反演成绝对坐标：球距右缘 x，则球左缘绝对坐标 = screenW - x - ballSize
-            val ballAbsLeft = screenW - ballParams.x - (BALL_SIZE_DP * density).toInt()
+            val ballAbsLeft = screenW - ballParams.x - ballPx
             val ballAbsTop = ballParams.y
             if (ballAbsLeft - width - pad >= 0) {
                 // 球左侧空间够：菜单贴球左
                 gravity = Gravity.TOP or Gravity.END
-                x = ballParams.x + (BALL_SIZE_DP * density).toInt() + pad
+                x = ballParams.x + ballPx + pad
                 y = ballAbsTop
             } else {
                 // 球在屏幕左半侧：菜单放到球右侧（防越出左缘被裁剪）
                 gravity = Gravity.TOP or Gravity.START
-                x = ballAbsLeft + (BALL_SIZE_DP * density).toInt() + pad
+                x = ballAbsLeft + ballPx + pad
                 y = ballAbsTop
+            }
+            // 垂直翻转：菜单贴屏幕底缘放不下（约 240dp 高）时上翻到球上方，
+            // 防止底部菜单项伸出屏幕不可点（审计体验级 3）
+            val menuH = 4 * 62f * density // 4 项 × 约 62dp/项（padding 14+14 + 15sp 文字）
+            if (y + menuH > screenH) {
+                y = (ballAbsTop - menuH).toInt().coerceAtLeast(0)
             }
         }
         // 菜单容器监听 OUTSIDE：点菜单之外任意处收起
@@ -493,13 +511,18 @@ class FloatingBallService : Service() {
             if (!isBallInWindow) {
                 // E2 修复：隐藏期间 UP/CANCEL 丢失 → alpha 可能残留 0.88，重置
                 ballView.alpha = 1f
-                runCatching {
+                val ok = runCatching {
                     windowManager.addView(
                         ballView,
                         ballView.tag as WindowManager.LayoutParams
                     )
+                }.isSuccess
+                isBallInWindow = ok
+                if (!ok && android.provider.Settings.canDrawOverlays(this)) {
+                    // 权限已到但本次加窗失败（如短暂窗口抖动）——重启重试，
+                    // 防止球在截图隐藏后永久丢失（审计阻断级 1c）
+                    startAddViewRetry()
                 }
-                isBallInWindow = true
             }
             refreshBallColor(
                 app.recordingSessionManager.currentState()
@@ -508,11 +531,12 @@ class FloatingBallService : Service() {
         }
     }
 
-    /** 球当前是否在窗口中（hide 后 false，show 后恢复 true）。 */
-    private var isBallInWindow = true
+    /** 球当前是否在窗口中。初始 false——onCreate 的 addToWindow 成功才置
+ *  true（失败路径交由 retryJob 补位；此前初始 true 导致失败场景标志残留，
+ *  onStartCommand 补加窗失效，审计阻断级 1）。 */
+    private var isBallInWindow = false
 
     override fun onDestroy() {
-        instance = null
         com.rainy.screenshot.capture.BallHiderRegistry.unregister(ballHider)
         stateJob?.cancel()
         retryJob?.cancel()

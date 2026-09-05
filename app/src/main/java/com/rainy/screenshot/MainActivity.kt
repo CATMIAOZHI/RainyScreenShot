@@ -76,7 +76,9 @@ class MainActivity : ComponentActivity() {
         Shizuku.addRequestPermissionResultListener(shizukuPermissionListener!!)
 
         // 触发授权请求（授权对话框由 Shizuku 应用弹出）
-        shellExecutor.requestPermission(REQUEST_SHIZUKU_PERMISSION)
+        // 卫生级修复：pingBinder 与 requestPermission 间 binder 消失的极小窗口
+        // 可抛 IllegalStateException（启动 crash），runCatching 兜底
+        runCatching { shellExecutor.requestPermission(REQUEST_SHIZUKU_PERMISSION) }
     }
 
     override fun onDestroy() {

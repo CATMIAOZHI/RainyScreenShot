@@ -31,6 +31,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -113,8 +114,14 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun setSize(size: String) = launchEdit {
+        // 格式校验（审计卫生级 10）：仅允许「宽x高」或空串，防非法输入
+        // 经 toArgs 裸拼进 sh -c 造成命令注入面；非法值直接忽略不写入
+        val cleaned = size.trim()
+        if (cleaned.isNotEmpty() && !Regex("^\\d+x\\d+$").matches(cleaned)) {
+            return@launchEdit
+        }
         settingsStore.setRecordConfig(
-            recordConfig.value.copy(size = size.takeIf { it.isNotBlank() })
+            recordConfig.value.copy(size = cleaned.takeIf { it.isNotBlank() })
         )
     }
 
@@ -177,6 +184,11 @@ fun SettingsScreen(
     val recordConfig by viewModel.recordConfig.collectAsState()
     val screenshotConfig by viewModel.screenshotConfig.collectAsState()
     val floatingBallEnabled by viewModel.floatingBallEnabled.collectAsState()
+    // B-E6 修复：resetAll 不可逆操作加确认对话框（此前点一下即静默清空
+    // 全部自定义参数）
+    var showResetConfirm by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(false)
+    }
     val context = LocalContext.current
 
     LaunchedEffect(Unit) { viewModel.refresh() }
@@ -192,7 +204,7 @@ fun SettingsScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { viewModel.resetAll() }) {
+                    IconButton(onClick = { showResetConfirm = true }) {
                         Icon(Icons.Filled.Refresh, contentDescription = "恢复默认")
                     }
                 },
@@ -232,8 +244,16 @@ fun SettingsScreen(
                 )
                 Spacer(Modifier.height(12.dp))
 
-                var sizeInput by remember(recordConfig.size) {
-                    mutableStateOf(recordConfig.size ?: "")
+                // B-E5 修复：本地输入态与 DataStore 回流解耦（此前 remember(recordConfig.size)
+                // 每敲一键写 DataStore→flow 回流→键变→整个输入态重建 → 光标跳回起始、快输丢字）
+                var sizeInput by androidx.compose.runtime.remember {
+                    androidx.compose.runtime.mutableStateOf(recordConfig.size ?: "")
+                }
+                // 外部变更（resetAll/其他页面）同步进输入框
+                androidx.compose.runtime.LaunchedEffect(recordConfig.size) {
+                    if ((recordConfig.size ?: "") != sizeInput) {
+                        sizeInput = recordConfig.size ?: ""
+                    }
                 }
                 OutlinedTextField(
                     value = sizeInput,
@@ -270,8 +290,14 @@ fun SettingsScreen(
                 )
                 Spacer(Modifier.height(12.dp))
 
-                var recordDisplayId by remember(recordConfig.displayId) {
-                    mutableStateOf(recordConfig.displayId?.toString() ?: "")
+                // B-E5 修复：本地输入态与 DataStore 回流解耦（同上）
+                var recordDisplayId by androidx.compose.runtime.remember {
+                    androidx.compose.runtime.mutableStateOf(recordConfig.displayId?.toString() ?: "")
+                }
+                androidx.compose.runtime.LaunchedEffect(recordConfig.displayId) {
+                    if ((recordConfig.displayId?.toString() ?: "") != recordDisplayId) {
+                        recordDisplayId = recordConfig.displayId?.toString() ?: ""
+                    }
                 }
                 OutlinedTextField(
                     value = recordDisplayId,
@@ -348,8 +374,14 @@ fun SettingsScreen(
                 }
                 Spacer(Modifier.height(12.dp))
 
-                var screenshotDisplayId by remember(screenshotConfig.displayId) {
-                    mutableStateOf(screenshotConfig.displayId?.toString() ?: "")
+                // B-E5 修复：本地输入态与 DataStore 回流解耦（同上）
+                var screenshotDisplayId by androidx.compose.runtime.remember {
+                    androidx.compose.runtime.mutableStateOf(screenshotConfig.displayId?.toString() ?: "")
+                }
+                androidx.compose.runtime.LaunchedEffect(screenshotConfig.displayId) {
+                    if ((screenshotConfig.displayId?.toString() ?: "") != screenshotDisplayId) {
+                        screenshotDisplayId = screenshotConfig.displayId?.toString() ?: ""
+                    }
                 }
                 OutlinedTextField(
                     value = screenshotDisplayId,
@@ -406,6 +438,28 @@ fun SettingsScreen(
                 SettingInfo("项目", "RainyScreenShot · the Rainy Family tools")
             }
         }
+    }
+
+    // B-E6：resetAll 确认对话框（不可逆操作需二次确认）
+    if (showResetConfirm) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showResetConfirm = false },
+            title = { Text("恢复默认设置？") },
+            text = { Text("将清除全部自定义参数（录屏/截屏参数）。悬浮球开关不受影响。") },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.resetAll()
+                    showResetConfirm = false
+                }) {
+                    Text("恢复默认", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showResetConfirm = false }) {
+                    Text("取消")
+                }
+            }
+        )
     }
 }
 
