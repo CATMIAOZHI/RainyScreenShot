@@ -83,6 +83,12 @@
             android:name=".overlay.FloatingBallService"
             android:exported="false" />
 
+        <!-- 图片/视频预览页（悬浮球入口，全屏黑底） -->
+        <activity
+            android:name=".ui.preview.PreviewActivity"
+            android:exported="false"
+            android:theme="@style/Theme.RainyScreenShot" />
+
         <!-- FileProvider：历史页分享截图/录屏（App 私有目录 → content:// URI） -->
         <provider
             android:name="androidx.core.content.FileProvider"
