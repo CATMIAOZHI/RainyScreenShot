@@ -1,5 +1,6 @@
 package com.rainy.screenshot.session
 
+import com.rainy.screenshot.capture.CaptureFileNamer
 import com.rainy.screenshot.capture.RecordConfig
 import com.rainy.screenshot.capture.RecordingEngine
 import com.rainy.screenshot.data.local.SettingsStore
@@ -155,31 +156,52 @@ class RecordingSessionManager @Inject constructor(
      *
      * 阶段 3（N7 边界）：收养时传入当前设置页持久化配置，aliveWatch 的
      * time-limit 判断与实际录制参数一致，避免自定义时长的会话被误判异常。
+     *
+     * 孤儿防护（M2/M3）：
+     * - 多孤儿扫描：候选按文件名时间戳降序逐个探测 pid，第一个命中的收养；
+     *   **其余命中 pid 的活孤儿一律 kill -INT**——收不了就必须终结，
+     *   否则静默泄漏（复活竞态 / 多孤儿泄漏路径）。pid 来自 cmdline 首字段
+     *   校验，误杀风险为零。最多探测 3 个候选，防冷启动拖慢。
+     * - perms 清扫：死亡期间自停的文件停留 600（App 无权读），glob chmod 660
+     *   一次性修复（App uid 对 shell 属主文件无权 chmod，必须 shell 侧执行）。
      */
     suspend fun restore() {
         if (isRecording) return
         if (!recordingEngine.isEnvironmentReadyQuiet()) return
 
+        // M3：无条件权限清扫（含所有 early-return 路径——死亡期间自停的
+        // 文件正是从这条链漏掉的）
+        recordingEngine.sweepRecordingPerms()
+
         val dir = recordingEngine.recordingsDir()
         val candidates = dir.listFiles { f -> f.name.startsWith("rainy_rec_") }
             ?.filter { System.currentTimeMillis() - it.lastModified() < 60_000 }
-            ?.sortedByDescending { it.lastModified() }
+            ?.sortedByDescending { CaptureFileNamer.parseTimestampName(it.name) ?: it.lastModified() }
             ?: return
-        val recent = candidates.firstOrNull() ?: return
+        if (candidates.isEmpty()) return
 
-        val pid = recordingEngine.findPidByFile(recent.name) ?: return
         // N7 边界：restore 使用当前持久化配置（而非 DEFAULT）
         val config = runCatching {
             settingsStore.recordConfigFlow.first().normalized()
         }.getOrDefault(RecordConfig.DEFAULT)
-        val adopted = runCatching {
-            recordingEngine.adoptSession(pid, recent, config)
-        }.getOrDefault(false)
-        if (adopted) {
-            _state.value = SessionState.Recording(
-                startedAt = recent.lastModified(),
-                outputFile = recent
-            )
+
+        // M2：多孤儿扫描——第一个活孤儿收养，其余活孤儿终结（防静默泄漏）
+        for (candidate in candidates.take(3)) {
+            val pid = recordingEngine.findPidByFile(candidate.name) ?: continue
+            val adopted = runCatching {
+                recordingEngine.adoptSession(pid, candidate, config)
+            }.getOrDefault(false)
+            if (adopted) {
+                _state.value = SessionState.Recording(
+                    startedAt = CaptureFileNamer.parseTimestampName(candidate.name)
+                        ?: candidate.lastModified(),
+                    outputFile = candidate
+                )
+            } else {
+                // 收不了就必须杀（复活竞态 / 已收养后剩余孤儿），
+                // 否则静默泄漏：无状态、无监视、无界写盘
+                runCatching { recordingEngine.killOrphan(pid, candidate) }
+            }
         }
     }
 

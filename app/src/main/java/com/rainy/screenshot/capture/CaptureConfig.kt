@@ -18,6 +18,24 @@ object CaptureFileNamer {
         return "${prefix}_$ts.$ext"
     }
 
+    /**
+     * 解析时间戳文件名中的录制/截屏起点（恢复场景用）。
+     *
+     * 文件名本身就编码了精确起点（[timestampName] 同一 format 反解），
+     * 比用文件 mtime 近似（录制中 mtime 每秒刷新 ≈ 收养时刻）精确。
+     *
+     * @return 起点毫秒时间戳；文件名不符合约定格式时 null（调用方回退 mtime）
+     */
+    fun parseTimestampName(fileName: String): Long? = runCatching {
+        // rainy_rec_yyyyMMdd_HHmmss_SSS.mp4 → stem = rainy_rec_yyyyMMdd_HHmmss_SSS
+        // 时间戳 = 最后 3 个 '_' 段（前缀自身可含 '_'，故从右侧取定长段）
+        val stem = fileName.substringBeforeLast('.')
+        val parts = stem.split('_')
+        require(parts.size >= 4) // 前缀(≥1 段) + 时间戳 3 段
+        val ts = parts.takeLast(3).joinToString("_")
+        format.parse(ts)?.time
+    }.getOrNull()
+
     /** 已运行时长格式化 mm:ss（UI 展示用） */
     fun formatDuration(millis: Long): String {
         val totalSec = millis / 1000
@@ -66,8 +84,10 @@ data class ScreenshotConfig(
  *
  * @param size 分辨率（null = 设备原生分辨率），形如 "1280x720"
  * @param bitRateMbps 码率 Mbps（null = 默认 8M）
- * @param timeLimitSec 时长上限秒（0 = 不限，实测 `--time-limit 0` 合法，
- *                     screenrecord help：Set to 0 to remove the time limit）
+ * @param timeLimitSec 时长上限秒。**0 = 「不限」档位**——但这是 App 死亡场景下
+ *                     唯一的安全刹车（shell 侧 screenrecord 独立存活，App 被杀
+ *                     后无人能叫停它），因此 [normalized] 会把 0 封顶为
+ *                     [UNLIMITED_CEILING_SEC] 再下发，进程级保证有限录制。
  * @param displayId 指定 display-id（null = 主屏）
  * @param bugreport 叠加 bugreport 信息（时间戳 overlay）
  */
@@ -86,22 +106,41 @@ data class RecordConfig(
 
         /** timeLimitSec 允许的最大值（7 天），防御性上限。 */
         const val TIME_LIMIT_MAX_SEC = 604_800
+
+        /**
+         * 「不限」档位的实际封顶（1 小时）。
+         *
+         * App 被杀后 screenrecord 独立存活（会话保活特性），--time-limit 是
+         * 唯一进程级刹车；0（真不限）在 App 死亡场景 = 无界写盘敞口
+         * （32Mbps ≈ 14.4GB/h，直至磁盘写满）。1h 覆盖 UI 全部现实场景
+         * （最长档 10m + 「不限」≈ 远超 10m 的诉求），用户在场可随时手动停。
+         */
+        const val UNLIMITED_CEILING_SEC = 3_600
     }
 
     /** 生成 screenrecord 参数段（不含输出文件名） */
     fun toArgs(): String = buildString {
         if (!size.isNullOrBlank()) append("--size $size ")
         bitRateMbps?.let { append("--bit-rate ${it}M ") }
-        // N7 边界：0 = 不限时长（实测 --time-limit 0 被 screenrecord 接受），
-        // 直接透传即可，勿过滤
+        // 注意：此处直接使用 [timeLimitSec]。正常链路所有调用方都先过
+        // normalized()（0 已被封顶），勿再传 0 —— 见 RecordConfig KDoc。
         append("--time-limit $timeLimitSec ")
         displayId?.let { append("--display-id $it ") }
         if (bugreport) append("--bugreport ")
     }
 
-    /** 规范化：bitrate 下限 1，时长 clamp 到 [0, TIME_LIMIT_MAX_SEC]。 */
+    /**
+     * 规范化：bitrate 下限 1；时长 0 封顶为 [UNLIMITED_CEILING_SEC]，
+     * 其余 clamp 到 [1, TIME_LIMIT_MAX_SEC]。
+     *
+     * 所有消费点（首页/磁贴/悬浮球/restore）统一走本函数，单点生效。
+     */
     fun normalized(): RecordConfig = copy(
         bitRateMbps = bitRateMbps?.coerceAtLeast(BITRATE_MIN_MBPS),
-        timeLimitSec = timeLimitSec.coerceIn(0, TIME_LIMIT_MAX_SEC)
+        timeLimitSec = if (timeLimitSec == 0) {
+            UNLIMITED_CEILING_SEC
+        } else {
+            timeLimitSec.coerceIn(1, TIME_LIMIT_MAX_SEC)
+        }
     )
 }

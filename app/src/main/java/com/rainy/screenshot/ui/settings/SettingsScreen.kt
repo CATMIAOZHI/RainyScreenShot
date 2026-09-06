@@ -167,7 +167,7 @@ class SettingsViewModel @Inject constructor(
 /** 码率档位文案（Mbps） */
 private val BITRATE_LABELS = listOf("1", "4", "8", "12", "16", "24", "32")
 
-/** 时长档位：秒 → 文案 */
+/** 时长档位：秒 → 文案（0 = 「不限」档：normalized() 层封顶 1 小时自动收尾） */
 private val TIME_LIMIT_LABELS = listOf("不限", "15s", "30s", "1m", "3m", "5m", "10m")
 private val TIME_LIMIT_VALUES = listOf(0, 15, 30, 60, 180, 300, 600)
 
@@ -287,6 +287,13 @@ fun SettingsScreen(
                         ]
                         viewModel.setTimeLimit(sec)
                     }
+                )
+                // 「不限」= 最长 1 小时自动收尾：App 被杀后 shell 侧
+                // screenrecord 独立存活，时长上限是唯一进程级刹车
+                Text(
+                    "「不限」= 最长 1 小时自动收尾",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(Modifier.height(12.dp))
 

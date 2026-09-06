@@ -356,6 +356,11 @@ class RecordingEngine @Inject constructor(
      * - B1 残留修复：区分「time-limit 正常到时」与「异常退出」——
      *   未到 time-limit 就死亡 = 异常，回调非空 reason → SessionManager 置 Failed
      * - UNKNOWN（Shizuku 抖动）不清会话，下轮继续探测
+     * - 超时强停（M5）：ALIVE 分支发现超 limit → 直接 kill -INT（不持锁、
+     *   不调 stop()——stop() 第一件事是 cancel watch 协程，自取消会打断
+     *   SIGINT 语义），随后交由既有 DEAD 分支完成 mutex 清理 +
+     *   finalizeOutput + exitListener。纵深防御：覆盖设备 --time-limit
+     *   失灵的场景（本机 v1.4 变体的 time-limit 自停行为未实测，TECH_NOTES §4）
      */
     private fun startAliveWatch(session: ActiveRecording) {
         aliveWatchJob = engineScope.launch {
@@ -364,7 +369,24 @@ class RecordingEngine @Inject constructor(
                 if (currentSession()?.pid != session.pid) return@launch
 
                 when (probeProcess(session.pid)) {
-                    ProcessStatus.ALIVE -> { /* 继续监视 */ }
+                    ProcessStatus.ALIVE -> {
+                        // M5 超时强停：进程级 --time-limit 是主刹车，
+                        // 这里是 App 侧兜底（覆盖失灵 + 收养会话 elapsed 精确判断）
+                        val limitMs = session.config.timeLimitSec * 1000L
+                        if (limitMs > 0 &&
+                            System.currentTimeMillis() - session.startedAt >= limitMs
+                        ) {
+                            runCatching {
+                                shellExecutor.exec(
+                                    "kill -INT ${session.pid}",
+                                    timeoutMs = 2_000L
+                                )
+                            }
+                            // 不清状态：下一轮（≤2s）DEAD 分支持锁收尾，
+                            // 与并发 stop() 的双 SIGINT 幂等无害（N1/N2 容忍）
+                        }
+                        /* 未超时：继续监视 */
+                    }
                     ProcessStatus.DEAD -> {
                         // 进程退出（time-limit 到时 / 异常终止）
                         val stillOurs = sessionMutex.withLock {
@@ -422,10 +444,9 @@ class RecordingEngine @Inject constructor(
     /**
      * 收养一个仍在运行的 shell 侧录制（restore 场景）。
      *
-     * 阶段 3 修复（N7 边界）：config 不再硬编码 DEFAULT——restore 时
-     * 上层传入当前设置页持久化配置，aliveWatch 的 time-limit 正常收尾
-     * 判断（elapsed < limitMs）才能与实际录制参数一致，否则自定义时长
-     * 会话会被误判为异常退出。
+     * startedAt 用文件名时间戳（[CaptureFileNamer.parseTimestampName]）精确
+     * 还原录制起点（录制中 mtime 每秒刷新，读到的 ≈ 收养时刻，误差 =
+     * App 死亡时长）——超时强停与 UI 时长显示都依赖它；解析失败回退 mtime。
      *
      * @return 是否成功（已有会话时 false）
      */
@@ -435,14 +456,53 @@ class RecordingEngine @Inject constructor(
         config: RecordConfig = RecordConfig.DEFAULT
     ): Boolean = sessionMutex.withLock {
         if (active != null) return@withLock false
+        val startedAt = CaptureFileNamer.parseTimestampName(outputFile.name)
+            ?: outputFile.lastModified()
         val session = ActiveRecording(
             pid = pid,
             outputFile = outputFile,
             config = config,
-            startedAt = outputFile.lastModified()
+            startedAt = startedAt
         )
         active = session
         startAliveWatch(session)
         true
+    }
+
+    /** 录制目录 600 权限孤儿清扫（M3）。 */
+    suspend fun sweepRecordingPerms() {
+        runCatching {
+            shellExecutor.exec(
+                "chmod 660 '${recordingsDir().absolutePath}'/rainy_rec_*.mp4",
+                timeoutMs = 3_000L
+            )
+        }
+    }
+
+    /**
+     * 终结一个无法收养的活孤儿进程（M2，restore 场景）。
+     *
+     * 收不了就必须杀：收养失败（复活竞态 / 多孤儿）的进程若放任，
+     * 将无状态、无监视、无界写盘。pid 经 cmdline 首字段 + 本 App 输出
+     * 文件名双重校验（[findPidByFile]），误杀风险≈0（残余：第三方主动
+     * 向本 App 沙箱按本 App 命名约定录屏——实践荒谬，且比放任无界
+     * 写盘好）；与 stop() 的完整流程不同，这里只发 SIGINT——文件权限
+     * 由（E1 修复）本函数顺手 chmod + 下次 restore 的 [sweepRecordingPerms]
+     * 双重兜底。
+     */
+    suspend fun killOrphan(pid: Int, outputFile: File? = null) {
+        runCatching {
+            shellExecutor.exec("kill -INT $pid", timeoutMs = 2_000L)
+        }
+        // E1 修复：被终结孤儿的文件停留 600（shell 属主，app 读不了），
+        // 不等下次冷启动 sweep——立即顺手修复，历史页立即可读
+        if (outputFile != null) {
+            runCatching {
+                shellExecutor.exec(
+                    "chmod 660 '${outputFile.absolutePath}'",
+                    timeoutMs = 2_000L
+                )
+            }
+        }
     }
 }
