@@ -7,7 +7,7 @@
 ```
 screencap/screenrecord (shell uid 2000, u:r:shell:s0)
         │  不触发 MediaProjection 授权弹窗
-        │  不触发 FLAG_SECURE 检测（非 Window 层路径）
+        │  不触发「禁止截屏」类提示（FLAG_SECURE 内容仍为黑块）
         │  不触发「屏幕共享中」指示器
         ▼
    RainyScreenShot 独享结果
@@ -21,7 +21,7 @@ RainyScreenShot（雨晴截屏）— Silent Screenshot & Screen Recorder · the 
 
 | 特性 | 说明 |
 |------|------|
-| 🤫 **静默截屏** | shell uid `screencap` 直取 framebuffer，前台 App 无任何回调与感知；绕过 FLAG_SECURE 对自身弹窗的依赖面（实测：录屏期间 `dumpsys media_projection` 始终为 null） |
+| 🤫 **静默截屏** | shell uid `screencap` 直取 framebuffer，前台 App 无任何回调与感知、无「禁止截屏」类提示（实测：录屏期间 `dumpsys media_projection` 始终为 null）；若窗口设了 FLAG_SECURE，其内容在画面中为黑块——系统级内容保护，任何方案均无法绕过 |
 | 🎬 **静默录屏** | shell uid `screenrecord`（v1.4）系统级编码器；开始/停止仅表现为进程 SIGINT，无投屏会话注册、无通知指示 |
 | ⚡ **快捷触发** | 三方式：APP 内按钮 · 悬浮控制球（OverlayManager TYPE_APPLICATION_OVERLAY）· 快捷磁贴（TileService，锁屏可用） |
 | 🛠️ **自定义参数** | 截屏：PNG/RAW、指定 display-id、多显示器 `-a`。录屏：分辨率 `--size`、码率 `--bit-rate`（默认 8M）、时长 `--time-limit`（0=不限）、bugreport 时间戳叠加、`--display-id` |
@@ -42,9 +42,9 @@ RainyScreenShot（雨晴截屏）— Silent Screenshot & Screen Recorder · the 
 | `MediaProjectionManager` 会话注册 | 有，App 可通过 `dumpsys media_projection` / API 感知 | ✅ 录屏全程实测为 `null` |
 | 状态栏「录屏/投屏」图标 | 有（Android 14+ 不可隐藏） | ✅ 无任何指示 |
 | 前台 App 感知回调 | 无直接 API，但存在间接信号（虚拟 Display 创建、麦克风焦点等） | ✅ 无回调路径 |
-| FLAG_SECURE 内容 | 显示为黑块 | ✅ 正常捕获（shell 路径不受影响） |
+| FLAG_SECURE 内容 | 显示为黑块 | ⚠️ 同为黑块（系统级内容保护，shell 路径同样无法绕过）；差异仅在全程无提示、目标 App 无感知 |
 
-> ⚠️ **边界如实说明**：本方案绕过的是「常规可感知信号」。它不修改目标 App、不注入任何代码；如目标 App 通过 `dumpsys` 系统级自检（需 READ_LOGS/adb 权限，普通 App 不具备）或对画面内容做数字水印/模糊检测，任何录屏方案都无法保证不可检测。方案目标 = 「普通 App 的常规检测手段全部失效」，这在实测中已成立。
+> ⚠️ **边界如实说明**：本方案绕过的是「常规可感知信号」。它不修改目标 App、不注入任何代码；如目标 App 通过 `dumpsys` 系统级自检（需 READ_LOGS/adb 权限，普通 App 不具备）或对画面内容做数字水印/模糊检测，任何录屏方案都无法保证不可检测；FLAG_SECURE 窗口内容（银行 App、DRM 视频等）在任何捕获路径下均为黑块，属系统级内容保护，同样无法绕过。方案目标 = 「普通 App 的常规检测手段全部失效」，这在实测中已成立。
 
 ---
 

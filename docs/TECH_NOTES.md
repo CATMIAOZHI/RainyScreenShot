@@ -100,7 +100,7 @@ $ screencap -p → 1.0MB PNG 成功
 
 ## 8. 边界与已知限制
 
-1. **FLAG_SECURE**：shell uid 捕获**不受** FLAG_SECURE 影响且不通知目标 App（与 MediaProjection 相同的捕获内容），差异在于目标 App 无法通过窗口层 API 感知本次捕获。
+1. **FLAG_SECURE**：FLAG_SECURE 窗口内容在**任何**捕获路径（含 shell uid）中均显示为黑块——系统级内容保护，无法绕过（与 MediaProjection 捕获结果相同，锁屏黑屏实测见 §8.3）。本方案相对 MediaProjection 的差异仅在于：全程不触发任何提示，目标 App 无法感知本次捕获。
 2. **音频内录**：`screenrecord` 无音频能力（实测无此参数）。如未来需要，方案 = 拉起系统 root 后用 `aplay` 内录或接入 MediaProjection 仅音频（会破坏隐身性），v1 不做。
 3. **锁屏期间录制**：shell 命令在锁屏下可执行（Shizuku 保持运行），但受 FLAG_SECURE 影响的 keyguard 内容可能全黑，录制的其他内容正常。
 4. **系统级自检**：目标 App 若通过 `dumpsys` 轮询（需 READ_LOGS 级权限，普通 App 不具备）或画面数字水印检测，任何方案都无法保证不可检测。本方案目标 = 常规检测手段全部失效。
