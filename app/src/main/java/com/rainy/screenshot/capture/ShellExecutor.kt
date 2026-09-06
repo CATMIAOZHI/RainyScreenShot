@@ -33,6 +33,9 @@ class ShellExecutor @Inject constructor(
 
         /** Shizuku APK 包名 */
         private const val SHIZUKU_PACKAGE = "moe.shizuku.privileged.api"
+
+        /** 任务栏/面板操作命令超时（settings/cmd 本地操作，5s 足够） */
+        private const val TILE_OP_TIMEOUT_MS = 5_000L
     }
 
     // ─────────────────────────────────────────────
@@ -216,6 +219,78 @@ class ShellExecutor @Inject constructor(
         val pkg = appContext.packageName
         return runCatching {
             val result = exec("appops set $pkg SYSTEM_ALERT_WINDOW allow")
+            result.exitCode == 0
+        }.getOrDefault(false)
+    }
+
+    // ─────────────────────────────────────────────
+    // 任务栏磁贴 / 快捷设置面板操作（§13 实测）
+    // ─────────────────────────────────────────────
+
+    /**
+     * 收起快捷设置/通知面板（磁贴点击路径防面板入镜，§13 实测）。
+     *
+     * - `cmd statusbar collapse`：面板已收起时调用同样 EXIT=0（幂等），
+     *   任何场景无条件发出、失败忽略（不阻断截屏主链路）
+     * - 通知面板展开时截图必然把面板拍进去——磁贴入口必须先收起再截
+     *
+     * @return 命令执行成功（exit 0）与否。失败也不阻断调用方主链路。
+     */
+    suspend fun collapseQuickSettings(): Boolean {
+        return runCatching {
+            exec("cmd statusbar collapse", TILE_OP_TIMEOUT_MS).exitCode == 0
+        }.getOrDefault(false)
+    }
+
+    /**
+     * 把磁贴添加到任务栏（快捷设置面板）。
+     *
+     * 实测依据（§13，shell uid 2000）：`cmd statusbar add-tile <pkg>/<cls>`
+     * EXIT=0 且磁贴真实进入 `sysui_qs_tiles`；重复调用幂等（列表无重复项）。
+     * 解决 TileService 的原生痛点：磁贴默认不出现在任务栏，需要用户
+     * 手动进编辑模式添加，发现成本高。
+     *
+     * @return 添加动作执行成功（exit 0）。幂等：已在列表时同样返回 true。
+     */
+    suspend fun addQuickSettingsTile(tileClass: Class<*>): Boolean {
+        val component = "${appContext.packageName}/${tileClass.name}"
+        return runCatching {
+            val result = exec(
+                "cmd statusbar add-tile $component", TILE_OP_TIMEOUT_MS
+            )
+            result.exitCode == 0
+        }.getOrDefault(false)
+    }
+
+    /**
+     * 磁贴是否在任务栏中（读 `sysui_qs_tiles`，无需写权限）。
+     *
+     * 匹配两种存储格式（§13 实测）：SystemUI 存储时把组件名缩写为
+     * `pkg/.ShortClass`（包名前缀剥离），部分 ROM 可能保留完整
+     * `pkg/pkg.ShortClass`——两种都检查，避免缩写格式漏判。
+     */
+    suspend fun hasQuickSettingsTile(tileClass: Class<*>): Boolean {
+        val pkg = appContext.packageName
+        val full = "$pkg/${tileClass.name}"
+        val short = "$pkg/.${tileClass.name.removePrefix("$pkg.")}"
+        return runCatching {
+            val result = exec(
+                "settings get secure sysui_qs_tiles", TILE_OP_TIMEOUT_MS
+            )
+            result.exitCode == 0 &&
+                (result.stdout.contains(full) || result.stdout.contains(short))
+        }.getOrDefault(false)
+    }
+
+    /**
+     * 从任务栏移除磁贴（设置页手动入口，供用户撤销自动添加）。
+     */
+    suspend fun removeQuickSettingsTile(tileClass: Class<*>): Boolean {
+        val component = "${appContext.packageName}/${tileClass.name}"
+        return runCatching {
+            val result = exec(
+                "cmd statusbar remove-tile $component", TILE_OP_TIMEOUT_MS
+            )
             result.exitCode == 0
         }.getOrDefault(false)
     }

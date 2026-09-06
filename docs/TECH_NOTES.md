@@ -199,3 +199,40 @@ $ cmd appops get com.rainy.screenshot SYSTEM_ALERT_WINDOW     # allow（生效�
 - 失败回落：Shizuku 不可用时仍走系统设置页引导（ACTION_MANAGE_OVERLAY_PERMISSION + package: URI）。
 
 *实测时间：2026-09-05 · 雨晴喵 · 阶段 3 权限增强*
+
+---
+
+## §13 任务栏磁贴与面板控制（2026-09-07 实测）
+
+**需求**：①截屏/录屏磁贴（TileService）出现在任务栏且点击结果干净（不拍到展开的面板）②磁贴默认不进任务栏，用户发现成本高。
+
+**实测环境**：本机 Android 16 / API 36（MIUI 系），shell uid 2000（`u:r:shell:s0`）——与 APP 经 Shizuku 的执行环境一致。
+
+### cmd statusbar 能力清单（`cmd statusbar` help 实测输出节选）
+
+| 命令 | 作用 | 实测结果 |
+|------|------|----------|
+| `cmd statusbar add-tile <pkg>/<cls>` | 把 TileService 磁贴加进任务栏 | ✅ EXIT=0，磁贴真实进入 `sysui_qs_tiles`（排在列表首位） |
+| `cmd statusbar remove-tile <pkg>/<cls>` | 移除磁贴 | ✅ EXIT=0，列表恢复原状 |
+| `cmd statusbar collapse` | 收起通知/快捷设置面板 | ✅ EXIT=0，幂等（面板已收起时调用同样 0） |
+| `cmd statusbar check-support` | QS API 支持探测 | ✅ 返回 true |
+
+### 关键实测结论
+
+1. **add-tile 幂等**：对同一组件重复 add-tile，列表中始终只有一项（实测连加两次 count 不变）。
+2. **组件名缩写存储**：`sysui_qs_tiles` 中第三方磁贴以 `custom(pkg/.ShortClass)` 缩写格式存储（包名前缀剥离）——**判断磁贴在列必须匹配缩写格式**，完整组件名 `contains()` 会漏判（工程实现 hasQuickSettingsTile 对两种格式都检查）。
+3. **collapse 生效验证**：`expand-settings` 后 `mCurrentFocus=NotificationShade`；`collapse` 后约 300ms 焦点回到前台 App，且后续截图画面干净（普通前台 App 内容）。
+4. **collapse 幂等**：面板已收起时调用同样 EXIT=0 → 点击磁贴可无条件发出，失败忽略即可。
+
+### 诚实记录的存疑点
+
+- 本机（MIUI 系）`expand-settings` 后立即 screencap 拍到的仍是前台 App 而非展开面板——该 ROM 上 expand 或 shade 层截取机制未完全验证。**代码按标准 Android 行为保守处理**：磁贴点击一律 `collapse` + 500ms 停顿后再截（停顿值：焦点复位实测约 300ms，取 500ms 兼容厂商动画偏慢）。
+- 上述 300ms/500ms 未在全部 ROM 家族验证（遵循不真机验证约定，跨设备以保守值为准）。
+
+### 工程决策
+
+- **磁贴点击链路**：截屏磁贴 = collapse → 500ms → screenshotQuick()；录屏磁贴 = collapse → 500ms → 启停（防第一帧/收尾几帧录到面板）。
+- **自动注入**：Shizuku 授权就绪 + 未注入过（SharedPreferences 标记）→ add-tile 两个磁贴；用户手动移除后不自动加回（防「删不掉的磁贴」）；重装/清数据重新注入。
+- **手动管理**：设置页「任务栏磁贴」卡（状态探测 hasQuickSettingsTile + 添加/移除按钮）。
+
+*实测时间：2026-09-07 · 雨晴喵 · 磁贴功能阶段*
