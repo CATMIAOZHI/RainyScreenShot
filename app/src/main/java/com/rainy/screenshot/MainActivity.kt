@@ -2,9 +2,9 @@ package com.rainy.screenshot
 
 import android.content.pm.PackageManager
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.appcompat.app.AppCompatActivity
 import com.rainy.screenshot.capture.ShellExecutor
 import com.rainy.screenshot.ui.RainyScreenShotNavHost
 import com.rainy.screenshot.ui.components.RainyBackground
@@ -26,7 +26,7 @@ import rikka.shizuku.Shizuku
  *  - 悬浮窗权限可通过 Shizuku shell 静默授予（appops set，见 ShellExecutor）。
  */
 @AndroidEntryPoint
-class MainActivity : ComponentActivity() {
+class MainActivity : AppCompatActivity() {
 
     @Inject
     lateinit var shellExecutor: ShellExecutor

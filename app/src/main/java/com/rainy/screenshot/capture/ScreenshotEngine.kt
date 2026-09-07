@@ -3,7 +3,6 @@ package com.rainy.screenshot.capture
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 /**
@@ -28,7 +27,7 @@ class ScreenshotEngine @Inject constructor(
         const val PREFIX_SCREENSHOT = "rainy_ss"
     }
 
-    /** 悬浮球隐藏嵌套计数（captureSeries 整组包裹 + captureTo 单张包裹防闪烁）。 */
+    /** 悬浮球隐藏嵌套计数（captureTo 单张包裹防闪烁；历史连拍整组包裹已随连拍入口移除）。 */
     private val hideDepth = java.util.concurrent.atomic.AtomicInteger(0)
 
     /**
@@ -73,7 +72,7 @@ class ScreenshotEngine @Inject constructor(
     }
 
     /**
-     * 截屏到指定文件（连拍/批量场景复用）。
+     * 截屏到指定文件（capture() 的统一实现，隐藏悬浮球包裹在此层）。
      *
      * 注意（B10 修复）：screencap -a 会给 FILENAME 自动加 `_0/_1` 后缀，
      * 校验固定路径必然失败。v1 暂不支持 allDisplays 组合，显式拒绝
@@ -119,54 +118,5 @@ class ScreenshotEngine @Inject constructor(
             showBall()
         }
         return target
-    }
-
-    /**
-     * 连拍（阶段 3-4）：按 [count] 张、[intervalMs] 间隔连续截屏。
-     *
-     * 每张独立命名（时间戳 + 序号），失败策略：单张失败不中断整组
-     * （记录失败张数），至少成功 1 张即视为组成功。
-     *
-     * @param config 截屏参数（格式/display-id 共用）
-     * @param count 张数（1..10）
-     * @param intervalMs 间隔毫秒（>= 500，screencap 单帧耗时 + 余量）
-     * @return 成功产出的文件列表
-     * @throws ShellException 全部失败或参数非法
-     */
-    suspend fun captureSeries(
-        config: ScreenshotConfig,
-        count: Int,
-        intervalMs: Long = 1_000L
-    ): List<File> {
-        require(count in 1..10) { "count must be 1..10" }
-        require(intervalMs >= 500L) { "intervalMs must be >= 500" }
-
-        // 整组连拍期间悬浮球保持隐藏（单张 hide/show 会闪烁）
-        hideBall()
-        try {
-            val results = mutableListOf<File>()
-            val failures = StringBuilder()
-            for (i in 1..count) {
-                val fileName = CaptureFileNamer.timestampName(
-                    "${PREFIX_SCREENSHOT}_${i.toString().padStart(2, '0')}",
-                    config.fileExtension
-                )
-                val target = shellExecutor.newOutputFile(DIR_SCREENSHOTS, fileName)
-                try {
-                    captureTo(target, config)
-                    results += target
-                } catch (e: Exception) {
-                    if (failures.isNotEmpty()) failures.append("; ")
-                    failures.append("第${i}张: ${e.message}")
-                }
-                if (i < count) delay(intervalMs)
-            }
-            if (results.isEmpty()) {
-                throw ShellException.Execution(-1, "连拍全部失败: $failures")
-            }
-            return results
-        } finally {
-            showBall()
-        }
     }
 }

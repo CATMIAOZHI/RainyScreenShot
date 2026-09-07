@@ -54,6 +54,7 @@ import com.rainy.screenshot.capture.ShellException
 import com.rainy.screenshot.session.RecordingSessionManager
 import com.rainy.screenshot.ui.theme.StatusGreen
 import com.rainy.screenshot.ui.theme.StatusRed
+import com.rainy.screenshot.util.LocaleCompat
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -68,6 +69,7 @@ import kotlinx.coroutines.launch
  */
 @HiltViewModel
 class HomeViewModel @Inject constructor(
+    @dagger.hilt.android.qualifiers.ApplicationContext private val appContext: android.content.Context,
     private val shellExecutor: com.rainy.screenshot.capture.ShellExecutor,
     private val screenshotEngine: com.rainy.screenshot.capture.ScreenshotEngine,
     private val recordingSessionManager: RecordingSessionManager,
@@ -189,9 +191,9 @@ class HomeViewModel @Inject constructor(
                     is RecordingSessionManager.StopResult.Success ->
                         onDone(true, "STOP:${result.durationMs / 1000}")
                     is RecordingSessionManager.StopResult.Failure ->
-                        onDone(false, friendlyErrorText(result.reason))
+                        onDone(false, friendlyErrorText(LocaleCompat.localized(appContext), result.reason))
                     RecordingSessionManager.StopResult.NotRecording ->
-                        onDone(false, "当前没有正在进行的录制")
+                        onDone(false, LocaleCompat.localized(appContext).getString(R.string.common_no_recording))
                 }
             } else {
                 try {
@@ -206,42 +208,43 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    private fun friendlyError(e: Exception): String = friendlyErrorText(
-        when (e) {
+    private fun friendlyError(e: Exception): String =
+        friendlyErrorText(LocaleCompat.localized(appContext), when (e) {
             is ShellException.NotInstalled -> "SHIZUKU_NOT_INSTALLED"
             is ShellException.NotRunning -> "SHIZUKU_NOT_RUNNING"
             is ShellException.NotGranted -> "SHIZUKU_NOT_GRANTED"
-            else -> e.message ?: "未知错误"
-        }
-    )
+            else -> e.message ?: ""
+        })
 }
 
-/** 引擎/管理器英文 reason → 中文可读文案（单一出口，Toast 与状态卡共用）。 */
-fun friendlyErrorText(raw: String): String = when {
-    raw == "SHIZUKU_NOT_INSTALLED" -> "Shizuku 未安装，请先安装并激活 Shizuku"
-    raw == "SHIZUKU_NOT_RUNNING" -> "Shizuku 未运行，请到 Shizuku 应用启动服务"
-    raw == "SHIZUKU_NOT_GRANTED" -> "未授予本应用 Shizuku 权限，请在 Shizuku 中授权"
-    raw.contains("already active") -> "已在录制中，请先停止当前录制"
-    raw.contains("no active recording") -> "当前没有正在进行的录制"
-    raw.contains("timeout") || raw.contains("timed out", ignoreCase = true) -> "命令执行超时，请重试（Shizuku 环境可能不稳定）"
-    raw.contains("still alive") || raw.contains("retry stop") -> "停止信号未生效，录制仍在进行，请重试停止"
-    raw.contains("kill -INT failed") -> "停止信号发送失败，录制可能仍在进行，请重试"
-    raw.contains("pid locate") -> "录屏进程启动异常（无法定位进程），已自动清理"
-    raw.contains("exited unexpectedly") -> "录屏进程异常退出，文件可能不完整"
-    raw.isBlank() -> "未知错误"
+/** 引擎/管理器英文 reason → 本地化可读文案（单一出口，Toast 与状态卡共用）。 */
+fun friendlyErrorText(context: android.content.Context, raw: String): String = when {
+    raw == "SHIZUKU_NOT_INSTALLED" -> context.getString(R.string.err_shizuku_not_installed)
+    raw == "SHIZUKU_NOT_RUNNING" -> context.getString(R.string.err_shizuku_not_running)
+    raw == "SHIZUKU_NOT_GRANTED" -> context.getString(R.string.err_shizuku_not_granted)
+    raw.contains("already active") -> context.getString(R.string.err_already_active)
+    raw.contains("no active recording") -> context.getString(R.string.err_no_active_recording)
+    raw.contains("timeout") || raw.contains("timed out", ignoreCase = true) -> context.getString(R.string.err_timeout)
+    raw.contains("still alive") || raw.contains("retry stop") -> context.getString(R.string.err_still_alive)
+    raw.contains("kill -INT failed") -> context.getString(R.string.err_kill_failed)
+    raw.contains("pid locate") -> context.getString(R.string.err_pid_locate)
+    raw.contains("exited unexpectedly") -> context.getString(R.string.err_exited_unexpectedly)
+    raw.isBlank() -> context.getString(R.string.common_unknown_error)
     else -> raw.take(120)
 }
 
 /** 状态卡 Failed reason 渲染（N5 修复：与 Toast 同源映射）。 */
 @Composable
-private fun friendlyFailedReason(reason: String): String =
-    if (reason.startsWith("SHIZUKU") || reason.contains("failed") ||
+private fun friendlyFailedReason(reason: String): String {
+    val context = LocalContext.current
+    return if (reason.startsWith("SHIZUKU") || reason.contains("failed") ||
         reason.contains("timed out") || reason.contains("active") ||
         reason.contains("alive") || reason.contains("unexpectedly")) {
-        friendlyErrorText(reason)
+        friendlyErrorText(context, reason)
     } else {
         reason.take(120)
     }
+}
 
 /**
  * 首页：状态卡 + 截屏/录屏主操作。
@@ -272,10 +275,10 @@ fun HomeScreen(
                 },
                 actions = {
                     IconButton(onClick = onOpenHistory) {
-                        Icon(Icons.Filled.History, contentDescription = "历史")
+                        Icon(Icons.Filled.History, contentDescription = stringResource(R.string.home_nav_history))
                     }
                     IconButton(onClick = onOpenSettings) {
-                        Icon(Icons.Filled.Settings, contentDescription = "设置")
+                        Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.home_nav_settings))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -316,20 +319,30 @@ fun HomeScreen(
                             modifier = Modifier.size(28.dp)
                         )
                     },
-                    label = if (sessionState is RecordingSessionManager.SessionState.Recording) "停止录制"
-                            else "静默录屏",
+                    label = stringResource(
+                            if (sessionState is RecordingSessionManager.SessionState.Recording)
+                                R.string.home_record_stop else R.string.home_record_start
+                        ),
                     containerColor = if (sessionState is RecordingSessionManager.SessionState.Recording)
                         MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
                     onClick = {
                         viewModel.toggleRecord(onDone = { ok, msg ->
                             when {
                                 ok && msg.startsWith("START") ->
-                                    Toast.makeText(context, "录制已开始（无感知）", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, R.string.home_record_toast_start, Toast.LENGTH_SHORT).show()
                                 ok && msg.startsWith("STOP") -> {
-                                    val secs = msg.removePrefix("STOP:")
-                                    Toast.makeText(context, "录制已收尾保存（时长 $secs 秒）", Toast.LENGTH_SHORT).show()
+                                    val secs = msg.removePrefix("STOP:").toIntOrNull() ?: 0
+                                    Toast.makeText(
+                                        context,
+                                        context.getString(R.string.home_record_toast_stop, secs),
+                                        Toast.LENGTH_SHORT
+                                    ).show()
                                 }
-                                else -> Toast.makeText(context, "操作失败：$msg", Toast.LENGTH_LONG).show()
+                                else -> Toast.makeText(
+                                    context,
+                                    context.getString(R.string.home_toast_failed, msg),
+                                    Toast.LENGTH_LONG
+                                ).show()
                             }
                         })
                     }
@@ -360,15 +373,19 @@ fun HomeScreen(
                             modifier = Modifier.size(24.dp)
                         )
                     },
-                    label = "延时 3s 截屏",
+                    label = stringResource(R.string.home_delay_button),
                     containerColor = MaterialTheme.colorScheme.secondary,
                     onClick = {
-                        Toast.makeText(context, "3 秒后截屏", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, R.string.home_delay_toast_start, Toast.LENGTH_SHORT).show()
                         viewModel.screenshotDelayed(3_000L) { ok, msg ->
                             if (ok) {
-                                Toast.makeText(context, "延迟截屏完成", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, R.string.home_delay_toast_done, Toast.LENGTH_SHORT).show()
                             } else {
-                                Toast.makeText(context, "延迟截屏失败：$msg", Toast.LENGTH_LONG).show()
+                                Toast.makeText(
+                                    context,
+                                    context.getString(R.string.home_delay_toast_failed, msg),
+                                    Toast.LENGTH_LONG
+                                ).show()
                             }
                         }
                     }
@@ -403,53 +420,53 @@ private fun TileSwitchCard(viewModel: HomeViewModel) {
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Text(
-                "任务栏磁贴",
+                stringResource(R.string.tile_card_title),
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSecondaryContainer
             )
             Spacer(Modifier.height(2.dp))
             Text(
-                "手动添加到下拉快捷面板；点磁贴自动收起面板再截/录，不拍到面板",
+                stringResource(R.string.tile_card_desc),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSecondaryContainer
             )
             Spacer(Modifier.height(12.dp))
 
             TileRow(
-                title = "静默截屏磁贴",
+                title = stringResource(R.string.tile_row_screenshot),
                 added = tileStates.screenshot,
                 envReady = envReady,
                 onAdd = {
                     viewModel.addScreenshotTile { ok ->
                         if (!ok) {
-                            Toast.makeText(context, "添加失败，请稍后重试", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, R.string.tile_add_failed, Toast.LENGTH_SHORT).show()
                         }
                     }
                 },
                 onRemove = {
                     viewModel.removeScreenshotTile { ok ->
                         if (!ok) {
-                            Toast.makeText(context, "移除失败，请稍后重试", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, R.string.tile_remove_failed, Toast.LENGTH_SHORT).show()
                         }
                     }
                 }
             )
             Spacer(Modifier.height(8.dp))
             TileRow(
-                title = "静默录屏磁贴",
+                title = stringResource(R.string.tile_row_record),
                 added = tileStates.record,
                 envReady = envReady,
                 onAdd = {
                     viewModel.addRecordTile { ok ->
                         if (!ok) {
-                            Toast.makeText(context, "添加失败，请稍后重试", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, R.string.tile_add_failed, Toast.LENGTH_SHORT).show()
                         }
                     }
                 },
                 onRemove = {
                     viewModel.removeRecordTile { ok ->
                         if (!ok) {
-                            Toast.makeText(context, "移除失败，请稍后重试", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, R.string.tile_remove_failed, Toast.LENGTH_SHORT).show()
                         }
                     }
                 }
@@ -479,9 +496,9 @@ private fun TileRow(
             )
             Text(
                 when {
-                    !envReady -> "Shizuku 未就绪，无法操作"
-                    added -> "已在任务栏中"
-                    else -> "不在任务栏中"
+                    !envReady -> stringResource(R.string.tile_state_env_not_ready)
+                    added -> stringResource(R.string.tile_state_added)
+                    else -> stringResource(R.string.tile_state_not_added)
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSecondaryContainer
@@ -492,14 +509,14 @@ private fun TileRow(
                 onClick = onRemove,
                 enabled = envReady
             ) {
-                Text("移除", color = MaterialTheme.colorScheme.error)
+                Text(stringResource(R.string.tile_remove), color = MaterialTheme.colorScheme.error)
             }
         } else {
             TextButton(
                 onClick = onAdd,
                 enabled = envReady
             ) {
-                Text("添加")
+                Text(stringResource(R.string.tile_add))
             }
         }
     }
@@ -531,14 +548,15 @@ private fun BallSwitchCard(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        "悬浮球",
+                        stringResource(R.string.ball_card_title),
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSecondaryContainer
                     )
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        if (enabled) "已开启 · 任意界面可截屏/录屏/预览"
-                        else "关闭中 · 开启后任意界面可用",
+                        stringResource(
+                            if (enabled) R.string.ball_card_on else R.string.ball_card_off
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSecondaryContainer
                     )
@@ -560,8 +578,7 @@ private fun BallSwitchCard(
             }
             Spacer(Modifier.height(8.dp))
             Text(
-                "• 截屏/录屏也可用磁贴：主页磁贴卡一键添加\n" +
-                "• 产出在历史页可预览、分享",
+                stringResource(R.string.ball_card_hint),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSecondaryContainer
             )
@@ -574,7 +591,7 @@ private fun BallSwitchCard(
                     onClick = onOpenHistory,
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text("看历史产出")
+                    Text(stringResource(R.string.ball_card_history))
                 }
             }
         }
@@ -593,16 +610,13 @@ private fun EnvGuideCard() {
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Text(
-                "Shizuku 环境未就绪",
+                stringResource(R.string.env_guide_title),
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onErrorContainer
             )
             Spacer(Modifier.height(6.dp))
             Text(
-                "静默截屏/录屏依赖 Shizuku shell 权限。请：\n" +
-                "1. 安装 Shizuku（moe.shizuku.privileged.api）\n" +
-                "2. 在 Shizuku 中通过 ADB 或 Root 启动服务\n" +
-                "3. 在 Shizuku 授权列表中允许「雨晴截屏」",
+                stringResource(R.string.env_guide_body),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onErrorContainer
             )
@@ -634,23 +648,28 @@ private fun StatusCard(state: RecordingSessionManager.SessionState) {
         Column(modifier = Modifier.padding(20.dp)) {
             val (title, desc, color) = when (state) {
                 is RecordingSessionManager.SessionState.Recording -> Triple(
-                    "录制中",
-                    "目标 App 无感知 · 无状态栏指示 · ${com.rainy.screenshot.capture.CaptureFileNamer.formatDuration(System.currentTimeMillis() - state.startedAt)}",
+                    stringResource(R.string.status_recording),
+                    stringResource(
+                        R.string.status_recording_desc,
+                        com.rainy.screenshot.capture.CaptureFileNamer.formatDuration(
+                            System.currentTimeMillis() - state.startedAt
+                        )
+                    ),
                     StatusGreen
                 )
                 is RecordingSessionManager.SessionState.Completed -> Triple(
-                    "已完成",
-                    "已录制 ${state.durationMs / 1000} 秒 · 文件在私有目录",
+                    stringResource(R.string.status_completed),
+                    stringResource(R.string.status_completed_desc, state.durationMs / 1000),
                     MaterialTheme.colorScheme.primary
                 )
                 is RecordingSessionManager.SessionState.Failed -> Triple(
-                    "上次操作失败",
+                    stringResource(R.string.status_failed),
                     friendlyFailedReason(state.reason),
                     StatusRed
                 )
                 RecordingSessionManager.SessionState.Idle -> Triple(
-                    "就绪",
-                    "Shizuku shell 通道待命",
+                    stringResource(R.string.status_idle),
+                    stringResource(R.string.status_idle_desc),
                     MaterialTheme.colorScheme.primary
                 )
             }
@@ -687,15 +706,12 @@ private fun InfoCard() {
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Text(
-                "使用说明",
+                stringResource(R.string.info_title),
                 style = MaterialTheme.typography.titleMedium
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                "• 截屏/录屏经 Shizuku shell 执行，不经 MediaProjection\n" +
-                "• 无系统弹窗、无状态栏投屏图标、目标 App 无回调\n" +
-                "• 快捷磁贴可在任意界面下拉触发（安全锁屏下除外）\n" +
-                "• 输出保存在 APP 私有目录，历史页可预览/分享/删除",
+                stringResource(R.string.info_body),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

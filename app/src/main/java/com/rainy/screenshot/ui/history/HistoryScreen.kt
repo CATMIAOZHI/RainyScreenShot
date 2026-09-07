@@ -44,6 +44,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -51,6 +52,7 @@ import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.rainy.screenshot.R
 import com.rainy.screenshot.capture.RecordingEngine
 import com.rainy.screenshot.capture.ScreenshotEngine
 import com.rainy.screenshot.capture.ShellExecutor
@@ -144,15 +146,15 @@ fun HistoryScreen(
         containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                title = { Text("历史记录", style = MaterialTheme.typography.titleLarge) },
+                title = { Text(stringResource(R.string.history_title), style = MaterialTheme.typography.titleLarge) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
                     }
                 },
                 actions = {
                     IconButton(onClick = { viewModel.refresh() }) {
-                        Icon(Icons.Filled.Refresh, contentDescription = "刷新")
+                        Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.common_refresh))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -170,7 +172,7 @@ fun HistoryScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    "暂无记录\n截屏/录屏后自动出现在这里",
+                    stringResource(R.string.history_empty),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center
@@ -191,7 +193,8 @@ fun HistoryScreen(
                             // RAW 文件不可预览（16 字节头 + 裸像素），Toast 提示
                             if (item.isRaw) {
                                 android.widget.Toast.makeText(
-                                    context, "RAW 原始数据无法预览，可分享后用工具转换",
+                                    context,
+                                    context.getString(R.string.history_raw_toast),
                                     android.widget.Toast.LENGTH_SHORT
                                 ).show()
                             } else {
@@ -211,18 +214,21 @@ fun HistoryScreen(
     confirmDelete?.let { item ->
         AlertDialog(
             onDismissRequest = { confirmDelete = null },
-            title = { Text("删除这条记录？") },
+            title = { Text(stringResource(R.string.history_delete_confirm_title)) },
             text = { Text(item.file.name, maxLines = 2, overflow = TextOverflow.Ellipsis) },
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.delete(item) { confirmDelete = null }
                 }) {
-                    Text("删除", color = MaterialTheme.colorScheme.error)
+                    Text(
+                        stringResource(R.string.common_delete),
+                        color = MaterialTheme.colorScheme.error
+                    )
                 }
             },
             dismissButton = {
                 TextButton(onClick = { confirmDelete = null }) {
-                    Text("取消")
+                    Text(stringResource(R.string.common_cancel))
                 }
             }
         )
@@ -262,7 +268,7 @@ private fun CaptureItemCard(
                 )
                 if (!item.isRaw) {
                     Text(
-                        "点击预览",
+                        stringResource(R.string.history_tap_preview),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -270,10 +276,10 @@ private fun CaptureItemCard(
             }
             // 操作：分享 / 删除
             IconButton(onClick = onShare) {
-                Icon(Icons.Filled.Share, contentDescription = "分享", tint = MaterialTheme.colorScheme.primary)
+                Icon(Icons.Filled.Share, contentDescription = stringResource(R.string.common_share), tint = MaterialTheme.colorScheme.primary)
             }
             IconButton(onClick = onDelete) {
-                Icon(Icons.Filled.Delete, contentDescription = "删除", tint = MaterialTheme.colorScheme.error)
+                Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.common_delete), tint = MaterialTheme.colorScheme.error)
             }
         }
     }
@@ -306,7 +312,13 @@ private fun Thumbnail(item: CaptureItem, modifier: Modifier = Modifier) {
         } else {
             Icon(
                 if (item.isVideo) Icons.Filled.Movie else Icons.Filled.Image,
-                contentDescription = if (item.isVideo) "视频" else if (item.isRaw) "RAW 原始数据" else "图片",
+                contentDescription = stringResource(
+                    when {
+                        item.isVideo -> R.string.history_thumb_video
+                        item.isRaw -> R.string.history_thumb_raw
+                        else -> R.string.history_thumb_image
+                    }
+                ),
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(28.dp)
             )
@@ -354,7 +366,7 @@ private fun shareFile(context: Context, item: CaptureItem) {
     }
     runCatching {
         context.startActivity(
-            Intent.createChooser(send, "分享 ${item.file.name}")
+            Intent.createChooser(send, context.getString(R.string.history_share_chooser, item.file.name))
         )
     }
 }

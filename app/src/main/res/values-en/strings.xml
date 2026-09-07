@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Localization: English. Keys map 1:1 with values/strings.xml. -->
+<resources>
+    <!-- ═══ Common ═══ -->
+    <string name="app_name">Rainy Screenshot</string>
+    <string name="common_back">Back</string>
+    <string name="common_refresh">Refresh</string>
+    <string name="common_cancel">Cancel</string>
+    <string name="common_delete">Delete</string>
+    <string name="common_share">Share</string>
+    <string name="common_no_recording">No recording in progress</string>
+    <string name="common_unknown_error">Unknown error</string>
+
+    <!-- ═══ Tile labels (shown in Quick Settings) ═══ -->
+    <string name="tile_screenshot">Silent Screenshot</string>
+    <string name="tile_record">Silent Recording</string>
+
+    <!-- ═══ Home ═══ -->
+    <string name="home_nav_history">History</string>
+    <string name="home_nav_settings">Settings</string>
+    <string name="home_record_stop">Stop recording</string>
+    <string name="home_record_start">Silent recording</string>
+    <string name="home_record_toast_start">Recording started (invisible)</string>
+    <string name="home_record_toast_stop">Recording saved (%1$d s)</string>
+    <string name="home_toast_failed">Action failed: %1$s</string>
+    <string name="home_delay_button">Screenshot in 3s</string>
+    <string name="home_delay_toast_start">Capturing in 3 seconds</string>
+    <string name="home_delay_toast_done">Delayed screenshot done</string>
+    <string name="home_delay_toast_failed">Delayed screenshot failed: %1$s</string>
+
+    <!-- Home · Quick Settings tiles card -->
+    <string name="tile_card_title">Quick Settings tiles</string>
+    <string name="tile_card_desc">Add manually to the pull-down Quick Settings; tapping a tile auto-collapses the panel before capturing, so the panel never appears in the shot</string>
+    <string name="tile_row_screenshot">Silent screenshot tile</string>
+    <string name="tile_row_record">Silent recording tile</string>
+    <string name="tile_add">Add</string>
+    <string name="tile_remove">Remove</string>
+    <string name="tile_add_failed">Failed to add, please try again later</string>
+    <string name="tile_remove_failed">Failed to remove, please try again later</string>
+    <string name="tile_state_env_not_ready">Shizuku not ready</string>
+    <string name="tile_state_added">In Quick Settings</string>
+    <string name="tile_state_not_added">Not in Quick Settings</string>
+
+    <!-- Home · Floating ball card -->
+    <string name="ball_card_title">Floating ball</string>
+    <string name="ball_card_on">On · capture/preview from any app</string>
+    <string name="ball_card_off">Off · enable to use it anywhere</string>
+    <string name="ball_card_hint">• Capture also works via tiles: add them from the home tiles card\n• Outputs are previewable and shareable on the History page</string>
+    <string name="ball_card_history">View history</string>
+
+    <!-- Home · Environment guide card -->
+    <string name="env_guide_title">Shizuku not ready</string>
+    <string name="env_guide_body">Silent capture requires Shizuku shell permission. Please:\n1. Install Shizuku (moe.shizuku.privileged.api)\n2. Start its service via ADB or Root\n3. Grant permission to “Rainy Screenshot” in Shizuku</string>
+
+    <!-- Home · Status card -->
+    <string name="status_recording">Recording</string>
+    <string name="status_recording_desc">Invisible to the target app · No status-bar indicator · %1$s</string>
+    <string name="status_completed">Completed</string>
+    <string name="status_completed_desc">Recorded %1$d s · file in private storage</string>
+    <string name="status_failed">Last action failed</string>
+    <string name="status_idle">Ready</string>
+    <string name="status_idle_desc">Shizuku shell channel standing by</string>
+
+    <!-- Home · Info card -->
+    <string name="info_title">How it works</string>
+    <string name="info_body">• Capture runs through Shizuku shell, not MediaProjection\n• No system dialogs, no cast icon in the status bar, no callbacks to the target app\n• Quick Settings tiles work anywhere (except on the secure lock screen)\n• Outputs are stored in private app storage; preview/share/delete on the History page</string>
+
+    <!-- Home · Error mapping (shared by Toast and status card) -->
+    <string name="err_shizuku_not_installed">Shizuku is not installed. Install and activate Shizuku first</string>
+    <string name="err_shizuku_not_running">Shizuku is not running. Start the service in the Shizuku app</string>
+    <string name="err_shizuku_not_granted">Shizuku permission not granted for this app. Grant it in Shizuku</string>
+    <string name="err_already_active">Already recording. Stop the current recording first</string>
+    <string name="err_no_active_recording">No recording in progress</string>
+    <string name="err_timeout">Command timed out. Please retry (the Shizuku environment may be unstable)</string>
+    <string name="err_still_alive">Stop signal not effective; recording continues. Please retry stopping</string>
+    <string name="err_kill_failed">Failed to send the stop signal; recording may continue. Please retry</string>
+    <string name="err_pid_locate">Recording process failed to start (process not located); cleaned up automatically</string>
+    <string name="err_exited_unexpectedly">Recording process exited unexpectedly; the file may be incomplete</string>
+
+    <!-- ═══ Settings ═══ -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_reset_cd">Reset to defaults</string>
+    <string name="settings_env_section">Shizuku environment</string>
+    <string name="settings_env_installed">Installed</string>
+    <string name="settings_env_running">Service status</string>
+    <string name="settings_env_granted">App permission</string>
+    <string name="settings_env_ready">Overall status</string>
+    <string name="settings_yes">Yes</string>
+    <string name="settings_no">No</string>
+    <string name="settings_env_running_yes">Running</string>
+    <string name="settings_env_running_no">Not running</string>
+    <string name="settings_env_granted_yes">Granted</string>
+    <string name="settings_env_granted_no">Not granted</string>
+    <string name="settings_env_ready_yes">Ready</string>
+    <string name="settings_env_ready_no">Not ready (check the items above)</string>
+    <string name="settings_record_section">Recording options</string>
+    <string name="settings_bitrate">Bitrate</string>
+    <string name="settings_size_label">Resolution (blank = match screen)</string>
+    <string name="settings_size_placeholder">e.g. 1280x720 or 1920x1080</string>
+    <string name="settings_time_limit">Time limit</string>
+    <string name="settings_time_unlimited">Unlimited</string>
+    <string name="settings_time_15s">15s</string>
+    <string name="settings_time_30s">30s</string>
+    <string name="settings_time_1m">1m</string>
+    <string name="settings_time_3m">3m</string>
+    <string name="settings_time_5m">5m</string>
+    <string name="settings_time_10m">10m</string>
+    <string name="settings_time_unlimited_note">“Unlimited” = auto-finish after at most 1 hour</string>
+    <string name="settings_display_id_label">display-id (blank = main display)</string>
+    <string name="settings_display_id_placeholder">Query via dumpsys SurfaceFlinger --display-id</string>
+    <string name="settings_bugreport_title">bugreport overlay</string>
+    <string name="settings_bugreport_desc">Overlay timestamps and system info on the recording</string>
+    <string name="settings_screenshot_section">Screenshot options</string>
+    <string name="settings_format_title">Output format</string>
+    <string name="settings_format_desc">PNG is small and easy to view; RAW is a 16-byte header + raw pixels, huge files</string>
+    <string name="settings_ball_section">Floating ball</string>
+    <string name="settings_ball_title">Persistent floating control ball</string>
+    <string name="settings_ball_desc">Tap anywhere to start/stop recording, draggable · permission is granted silently via Shizuku first; falls back to system settings only on failure</string>
+    <string name="settings_language_section">Language</string>
+    <string name="settings_language_system">Follow system</string>
+    <string name="settings_language_zh">简体中文</string>
+    <string name="settings_language_zh_tw">繁體中文</string>
+    <string name="settings_language_en">English</string>
+    <string name="settings_about_section">About</string>
+    <string name="settings_about_version">Version</string>
+    <string name="settings_about_project">Project</string>
+    <string name="settings_reset_confirm_title">Reset to defaults?</string>
+    <string name="settings_reset_confirm_body">All custom parameters (recording/screenshot options) will be cleared. The floating ball switch is not affected.</string>
+    <string name="settings_reset_confirm_button">Reset</string>
+
+    <!-- ═══ History ═══ -->
+    <string name="history_title">History</string>
+    <string name="history_empty">Nothing yet\nCaptures will appear here automatically</string>
+    <string name="history_raw_toast">RAW data can’t be previewed. Share it and convert with a tool</string>
+    <string name="history_delete_confirm_title">Delete this entry?</string>
+    <string name="history_tap_preview">Tap to preview</string>
+    <string name="history_thumb_video">Video</string>
+    <string name="history_thumb_raw">RAW data</string>
+    <string name="history_thumb_image">Image</string>
+    <string name="history_share_chooser">Share %1$s</string>
+
+    <!-- ═══ Preview ═══ -->
+    <string name="preview_unavailable">Can’t preview (RAW file or decode failure)</string>
+    <string name="preview_play_error">Playback failed (error %1$d/%2$d)</string>
+
+    <!-- ═══ Floating ball ═══ -->
+    <string name="ball_menu_stop_record">■ Stop recording</string>
+    <string name="ball_menu_start_record">● Start recording</string>
+    <string name="ball_menu_screenshot">📸 Screenshot now</string>
+    <string name="ball_menu_latest_image">🖼 Latest screenshot</string>
+    <string name="ball_menu_latest_video">🎬 Latest video</string>
+    <string name="ball_toast_screenshot_failed">Screenshot failed</string>
+    <string name="ball_toast_no_screenshot">No screenshots yet</string>
+    <string name="ball_toast_no_video">No recordings yet</string>
+</resources>

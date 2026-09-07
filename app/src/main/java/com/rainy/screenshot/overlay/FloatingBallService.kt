@@ -16,6 +16,8 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.Toast
+import com.rainy.screenshot.R
+import com.rainy.screenshot.util.LocaleCompat
 import com.rainy.screenshot.recordingSessionManager
 import com.rainy.screenshot.screenshotQuick
 import com.rainy.screenshot.settingsStore
@@ -294,11 +296,15 @@ class FloatingBallService : Service() {
             background = bg
         }
 
+        val ctx = LocaleCompat.localized(this)
         val items = listOf(
-            if (recording) "■ 停止录屏" else "● 开始录屏",
-            "📸 立即截屏",
-            "🖼 预览最新截图",
-            "🎬 预览最新视频"
+            ctx.getString(
+                if (recording) R.string.ball_menu_stop_record
+                else R.string.ball_menu_start_record
+            ),
+            ctx.getString(R.string.ball_menu_screenshot),
+            ctx.getString(R.string.ball_menu_latest_image),
+            ctx.getString(R.string.ball_menu_latest_video)
         )
         items.forEachIndexed { index, label ->
             val item = android.widget.TextView(this)
@@ -421,7 +427,7 @@ class FloatingBallService : Service() {
         scope.launch {
             val ok = runCatching { app.screenshotQuick() }.getOrElse { false }
             if (!ok) {
-                Toast.makeText(this@FloatingBallService, "截屏失败喵", Toast.LENGTH_SHORT).show()
+                Toast.makeText(LocaleCompat.localized(this@FloatingBallService), R.string.ball_toast_screenshot_failed, Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -430,7 +436,7 @@ class FloatingBallService : Service() {
     private fun openLatestImage() {
         val latest = latestFile(com.rainy.screenshot.capture.ScreenshotEngine.DIR_SCREENSHOTS)
         if (latest == null) {
-            Toast.makeText(this, "还没有截图喵", Toast.LENGTH_SHORT).show()
+            Toast.makeText(LocaleCompat.localized(this), R.string.ball_toast_no_screenshot, Toast.LENGTH_SHORT).show()
             return
         }
         PreviewActivity.start(this, latest, isVideo = false)
@@ -440,7 +446,7 @@ class FloatingBallService : Service() {
     private fun openLatestVideo() {
         val latest = latestFile(com.rainy.screenshot.capture.RecordingEngine.DIR_RECORDINGS)
         if (latest == null) {
-            Toast.makeText(this, "还没有录屏喵", Toast.LENGTH_SHORT).show()
+            Toast.makeText(LocaleCompat.localized(this), R.string.ball_toast_no_video, Toast.LENGTH_SHORT).show()
             return
         }
         PreviewActivity.start(this, latest, isVideo = true)

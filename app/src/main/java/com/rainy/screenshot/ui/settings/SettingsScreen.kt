@@ -45,15 +45,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.rainy.screenshot.R
 import com.rainy.screenshot.capture.RecordConfig
 import com.rainy.screenshot.capture.ScreenshotConfig
 import com.rainy.screenshot.capture.ScreenshotFormat
 import com.rainy.screenshot.capture.ShellExecutor
 import com.rainy.screenshot.data.local.SettingsStore
+import com.rainy.screenshot.util.LocaleCompat
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -167,8 +170,13 @@ class SettingsViewModel @Inject constructor(
 /** 码率档位文案（Mbps） */
 private val BITRATE_LABELS = listOf("1", "4", "8", "12", "16", "24", "32")
 
-/** 时长档位：秒 → 文案（0 = 「不限」档：normalized() 层封顶 1 小时自动收尾） */
-private val TIME_LIMIT_LABELS = listOf("不限", "15s", "30s", "1m", "3m", "5m", "10m")
+/** 时长档位：秒 → 资源 id（0 = 「不限」档：normalized() 层封顶 1 小时自动收尾） */
+private val TIME_LIMIT_LABELS = listOf(
+    R.string.settings_time_unlimited,
+    R.string.settings_time_15s, R.string.settings_time_30s,
+    R.string.settings_time_1m, R.string.settings_time_3m,
+    R.string.settings_time_5m, R.string.settings_time_10m
+)
 private val TIME_LIMIT_VALUES = listOf(0, 15, 30, 60, 180, 300, 600)
 
 /**
@@ -190,6 +198,13 @@ fun SettingsScreen(
         androidx.compose.runtime.mutableStateOf(false)
     }
     val context = LocalContext.current
+    val timeLimitLabels = TIME_LIMIT_LABELS.map { stringResource(it) }
+
+    // 语言卡状态：null = 跟随系统；切换即写 state 触发本页重组
+    // （AppCompat 在 API<33 时自动重建 Activity，API 33+ 经 per-app locale 全局刷新）
+    val (appLocaleTag, onAppLocaleTagChange) = androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(LocaleCompat.currentAppLocaleTag())
+    }
 
     LaunchedEffect(Unit) { viewModel.refresh() }
 
@@ -197,15 +212,15 @@ fun SettingsScreen(
         containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                title = { Text("设置", style = MaterialTheme.typography.titleLarge) },
+                title = { Text(stringResource(R.string.settings_title), style = MaterialTheme.typography.titleLarge) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
                     }
                 },
                 actions = {
                     IconButton(onClick = { showResetConfirm = true }) {
-                        Icon(Icons.Filled.Refresh, contentDescription = "恢复默认")
+                        Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.settings_reset_cd))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -222,22 +237,40 @@ fun SettingsScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            SectionCard("Shizuku 环境") {
-                SettingInfo("已安装", if (env.installed) "是" else "否")
-                Spacer(Modifier.height(8.dp))
-                SettingInfo("服务运行", if (env.running) "运行中" else "未运行")
-                Spacer(Modifier.height(8.dp))
-                SettingInfo("本应用授权", if (env.granted) "已授予" else "未授予")
+            SectionCard(stringResource(R.string.settings_env_section)) {
+                SettingInfo(
+                stringResource(R.string.settings_env_installed),
+                stringResource(if (env.installed) R.string.settings_yes else R.string.settings_no)
+            )
                 Spacer(Modifier.height(8.dp))
                 SettingInfo(
-                    "整体状态",
-                    if (env.ready) "就绪" else "未就绪（按上述项排查）"
+                stringResource(R.string.settings_env_running),
+                stringResource(
+                    if (env.running) R.string.settings_env_running_yes
+                    else R.string.settings_env_running_no
+                )
+            )
+                Spacer(Modifier.height(8.dp))
+                SettingInfo(
+                stringResource(R.string.settings_env_granted),
+                stringResource(
+                    if (env.granted) R.string.settings_env_granted_yes
+                    else R.string.settings_env_granted_no
+                )
+            )
+                Spacer(Modifier.height(8.dp))
+                SettingInfo(
+                    stringResource(R.string.settings_env_ready),
+                    stringResource(
+                        if (env.ready) R.string.settings_env_ready_yes
+                        else R.string.settings_env_ready_no
+                    )
                 )
             }
 
-            SectionCard("录屏参数") {
+            SectionCard(stringResource(R.string.settings_record_section)) {
                 ChoiceChips(
-                    label = "码率",
+                    label = stringResource(R.string.settings_bitrate),
                     options = BITRATE_LABELS,
                     selectedValue = recordConfig.bitRateMbps?.toString() ?: "8",
                     onSelect = { v -> viewModel.setBitrate(v.toInt()) }
@@ -261,29 +294,29 @@ fun SettingsScreen(
                         sizeInput = new
                         viewModel.setSize(new)
                     },
-                    label = { Text("分辨率（留空=跟随屏幕）") },
-                    placeholder = { Text("例如 1280x720 或 1920x1080") },
+                    label = { Text(stringResource(R.string.settings_size_label)) },
+                    placeholder = { Text(stringResource(R.string.settings_size_placeholder)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(Modifier.height(12.dp))
 
                 ChoiceChips(
-                    label = "时长上限",
-                    options = TIME_LIMIT_LABELS,
+                    label = stringResource(R.string.settings_time_limit),
+                    options = timeLimitLabels,
                     selectedValue = when (recordConfig.timeLimitSec) {
-                        0 -> "不限"
-                        15 -> "15s"
-                        30 -> "30s"
-                        60 -> "1m"
-                        180 -> "3m"
-                        300 -> "5m"
-                        600 -> "10m"
+                        0 -> timeLimitLabels[0]
+                        15 -> timeLimitLabels[1]
+                        30 -> timeLimitLabels[2]
+                        60 -> timeLimitLabels[3]
+                        180 -> timeLimitLabels[4]
+                        300 -> timeLimitLabels[5]
+                        600 -> timeLimitLabels[6]
                         else -> "${recordConfig.timeLimitSec}s"
                     },
                     onSelect = { v ->
                         val sec = TIME_LIMIT_VALUES[
-                            TIME_LIMIT_LABELS.indexOf(v).coerceAtLeast(0)
+                            timeLimitLabels.indexOf(v).coerceAtLeast(0)
                         ]
                         viewModel.setTimeLimit(sec)
                     }
@@ -291,7 +324,7 @@ fun SettingsScreen(
                 // 「不限」= 最长 1 小时自动收尾：App 被杀后 shell 侧
                 // screenrecord 独立存活，时长上限是唯一进程级刹车
                 Text(
-                    "「不限」= 最长 1 小时自动收尾",
+                    stringResource(R.string.settings_time_unlimited_note),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -312,8 +345,8 @@ fun SettingsScreen(
                         recordDisplayId = new
                         viewModel.setRecordDisplayId(new)
                     },
-                    label = { Text("display-id（留空=主屏）") },
-                    placeholder = { Text("dumpsys SurfaceFlinger --display-id 查询") },
+                    label = { Text(stringResource(R.string.settings_display_id_label)) },
+                    placeholder = { Text(stringResource(R.string.settings_display_id_placeholder)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -325,11 +358,11 @@ fun SettingsScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            "bugreport 叠加",
+                            stringResource(R.string.settings_bugreport_title),
                             style = MaterialTheme.typography.bodyMedium
                         )
                         Text(
-                            "录制画面叠加时间戳等系统信息",
+                            stringResource(R.string.settings_bugreport_desc),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -341,15 +374,15 @@ fun SettingsScreen(
                 }
             }
 
-            SectionCard("截屏参数") {
+            SectionCard(stringResource(R.string.settings_screenshot_section)) {
                 Row(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            "输出格式",
+                            stringResource(R.string.settings_format_title),
                             style = MaterialTheme.typography.bodyMedium
                         )
                         Text(
-                            "PNG 文件小、易查看；RAW 为 16 字节头+裸像素，文件巨大",
+                            stringResource(R.string.settings_format_desc),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -396,25 +429,25 @@ fun SettingsScreen(
                         screenshotDisplayId = new
                         viewModel.setScreenshotDisplayId(new)
                     },
-                    label = { Text("display-id（留空=主屏）") },
-                    placeholder = { Text("dumpsys SurfaceFlinger --display-id 查询") },
+                    label = { Text(stringResource(R.string.settings_display_id_label)) },
+                    placeholder = { Text(stringResource(R.string.settings_display_id_placeholder)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
 
-            SectionCard("悬浮球") {
+            SectionCard(stringResource(R.string.settings_ball_section)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            "常驻悬浮控制球",
+                            stringResource(R.string.settings_ball_title),
                             style = MaterialTheme.typography.bodyMedium
                         )
                         Text(
-                            "任意界面点击开始/停止录屏，可拖动 · 权限优先经 Shizuku 静默获取，失败时才跳系统设置",
+                            stringResource(R.string.settings_ball_desc),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -439,10 +472,26 @@ fun SettingsScreen(
                 }
             }
 
-            SectionCard("关于") {
-                SettingInfo("版本", "0.1.0")
+            SectionCard(stringResource(R.string.settings_language_section)) {
+                LanguageChoice(
+                    selectedTag = appLocaleTag,
+                    onSelected = { tag ->
+                        onAppLocaleTagChange(tag)
+                        LocaleCompat.applyAppLocale(tag)
+                    }
+                )
+            }
+
+            SectionCard(stringResource(R.string.settings_about_section)) {
+                SettingInfo(
+                    stringResource(R.string.settings_about_version),
+                    com.rainy.screenshot.BuildConfig.VERSION_NAME
+                )
                 Spacer(Modifier.height(8.dp))
-                SettingInfo("项目", "RainyScreenShot · the Rainy Family tools")
+                SettingInfo(
+                    stringResource(R.string.settings_about_project),
+                    "RainyScreenShot · the Rainy Family tools"
+                )
             }
         }
     }
@@ -451,19 +500,22 @@ fun SettingsScreen(
     if (showResetConfirm) {
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { showResetConfirm = false },
-            title = { Text("恢复默认设置？") },
-            text = { Text("将清除全部自定义参数（录屏/截屏参数）。悬浮球开关不受影响。") },
+            title = { Text(stringResource(R.string.settings_reset_confirm_title)) },
+            text = { Text(stringResource(R.string.settings_reset_confirm_body)) },
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.resetAll()
                     showResetConfirm = false
                 }) {
-                    Text("恢复默认", color = MaterialTheme.colorScheme.error)
+                    Text(
+                        stringResource(R.string.settings_reset_confirm_button),
+                        color = MaterialTheme.colorScheme.error
+                    )
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showResetConfirm = false }) {
-                    Text("取消")
+                    Text(stringResource(R.string.common_cancel))
                 }
             }
         )
@@ -502,6 +554,50 @@ private fun ChoiceChips(
                     )
                 )
                 Spacer(Modifier.width(6.dp))
+            }
+        }
+    }
+}
+
+/**
+ * 语言选择卡（设置页内嵌）：跟随系统 / 简体中文 / 繁體中文 / English。
+ *
+ * 语言名固定用原生称谓（不随 UI 语言翻译——语言菜单本身要让用户
+ * 在看不懂当前语言时也能找到目标语言）。选中态按 BCP-47 tag 匹配。
+ */
+@Composable
+private fun LanguageChoice(
+    selectedTag: String?,
+    onSelected: (String?) -> Unit
+) {
+    val languages = listOf(
+        null to stringResource(R.string.settings_language_system),
+        "zh" to stringResource(R.string.settings_language_zh),
+        "zh-TW" to stringResource(R.string.settings_language_zh_tw),
+        "en" to stringResource(R.string.settings_language_en)
+    )
+    Column(modifier = Modifier.fillMaxWidth()) {
+        languages.forEach { (tag, name) ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .selectable(
+                        selected = tag == selectedTag,
+                        role = androidx.compose.ui.semantics.Role.RadioButton
+                    ) { onSelected(tag) }
+                    .padding(vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                RadioButton(
+                    selected = tag == selectedTag,
+                    onClick = null
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    name,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.align(Alignment.CenterVertically)
+                )
             }
         }
     }

@@ -1,5 +1,7 @@
 # 📸 雨晴截屏
 
+**简体中文 | [English](README_EN.md)**
+
 > *"悄然记录，尽收眼底 — Silent Capture, Full Control"*
 
 基于 Shizuku shell 的 Android 截屏/录屏 APP —— 不经 MediaProjection、无系统弹窗、无状态栏摄像头指示，前台 App 完全无感知被截屏/录屏。支持快捷触发与完全自定义的截屏/录屏参数。
@@ -116,6 +118,12 @@ RainyScreenShot/
 └── docs/
     └── TECH_NOTES.md      # 实测记录归档（命令行为、退出码、边界）
 ```
+
+---
+
+## 🌐 多语言
+
+内置三语言：简体中文（默认）、繁體中文、English。跟随系统语言自动切换；Android 13+ 还可在系统设置里按应用单独指定（语言 → 雨晴截屏）。
 
 ---
 

@@ -7,9 +7,9 @@ import android.os.Bundle
 import android.widget.MediaController
 import android.widget.Toast
 import android.widget.VideoView
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
@@ -40,7 +40,9 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.viewinterop.AndroidView
+import com.rainy.screenshot.R
 import com.rainy.screenshot.ui.components.RainyBackground
 import com.rainy.screenshot.ui.theme.RainyScreenShotTheme
 import java.io.File
@@ -51,7 +53,7 @@ import kotlinx.coroutines.withContext
  * 预览页（悬浮球入口）：图片可缩放查看，视频内嵌播放。
  * 入口参数：EXTRA_PATH（文件路径）+ EXTRA_IS_VIDEO（是否视频）。
  */
-class PreviewActivity : ComponentActivity() {
+class PreviewActivity : AppCompatActivity() {
 
     /** 当前视频实例（onPause 暂停，防止后台继续出声）。 */
     private var activeVideoView: VideoView? = null
@@ -130,7 +132,8 @@ private fun PreviewScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回", tint = Color.White)
+                            contentDescription = stringResource(R.string.common_back),
+                            tint = Color.White)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -174,7 +177,7 @@ private fun ImagePreview(file: File) {
     }
     if (decodeFailed) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("无法预览（RAW 文件或解码失败）", color = Color.White)
+            Text(stringResource(R.string.preview_unavailable), color = Color.White)
         }
         return
     }
@@ -227,7 +230,9 @@ private fun VideoPreview(file: File, resumePos: Int, onReady: (VideoView?) -> Un
                 }
                 setOnErrorListener { _, what, extra ->
                     Toast.makeText(
-                        context, "播放失败喵（错误 $what/$extra）", Toast.LENGTH_SHORT
+                        context,
+                        context.getString(R.string.preview_play_error, what, extra),
+                        Toast.LENGTH_SHORT
                     ).show()
                     true
                 }

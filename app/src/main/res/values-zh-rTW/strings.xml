@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 多语言：繁體中文（台灣用語）。键名与 values/strings.xml 一一对应。 -->
+<resources>
+    <!-- ═══ 通用 ═══ -->
+    <string name="app_name">雨晴截屏</string>
+    <string name="common_back">返回</string>
+    <string name="common_refresh">重新整理</string>
+    <string name="common_cancel">取消</string>
+    <string name="common_delete">刪除</string>
+    <string name="common_share">分享</string>
+    <string name="common_no_recording">目前沒有正在進行的錄影</string>
+    <string name="common_unknown_error">未知錯誤</string>
+
+    <!-- ═══ 磁貼標籤（快速設定面板顯示名） ═══ -->
+    <string name="tile_screenshot">靜默截圖</string>
+    <string name="tile_record">靜默錄影</string>
+
+    <!-- ═══ 首頁 ═══ -->
+    <string name="home_nav_history">歷史</string>
+    <string name="home_nav_settings">設定</string>
+    <string name="home_record_stop">停止錄影</string>
+    <string name="home_record_start">靜默錄影</string>
+    <string name="home_record_toast_start">錄影已開始（無感知）</string>
+    <string name="home_record_toast_stop">錄影已收尾儲存（時長 %1$d 秒）</string>
+    <string name="home_toast_failed">操作失敗：%1$s</string>
+    <string name="home_delay_button">延遲 3 秒截圖</string>
+    <string name="home_delay_toast_start">3 秒後截圖</string>
+    <string name="home_delay_toast_done">延遲截圖完成</string>
+    <string name="home_delay_toast_failed">延遲截圖失敗：%1$s</string>
+
+    <!-- 首頁 · 快速設定圖塊卡 -->
+    <string name="tile_card_title">快速設定圖塊</string>
+    <string name="tile_card_desc">手動加入下拉快速設定面板；點擊圖塊自動收合面板再截圖/錄影，不會拍進面板</string>
+    <string name="tile_row_screenshot">靜默截圖圖塊</string>
+    <string name="tile_row_record">靜默錄影圖塊</string>
+    <string name="tile_add">加入</string>
+    <string name="tile_remove">移除</string>
+    <string name="tile_add_failed">加入失敗，請稍後再試</string>
+    <string name="tile_remove_failed">移除失敗，請稍後再試</string>
+    <string name="tile_state_env_not_ready">Shizuku 未就緒，無法操作</string>
+    <string name="tile_state_added">已在快速設定中</string>
+    <string name="tile_state_not_added">不在快速設定中</string>
+
+    <!-- 首頁 · 懸浮球卡 -->
+    <string name="ball_card_title">懸浮球</string>
+    <string name="ball_card_on">已開啟 · 任意介面可截圖/錄影/預覽</string>
+    <string name="ball_card_off">關閉中 · 開啟後任意介面可用</string>
+    <string name="ball_card_hint">• 截圖/錄影也可用圖塊：主頁圖塊卡一鍵加入\n• 產出在歷史頁可預覽、分享</string>
+    <string name="ball_card_history">看歷史產出</string>
+
+    <!-- 首頁 · 環境引導卡 -->
+    <string name="env_guide_title">Shizuku 環境未就緒</string>
+    <string name="env_guide_body">靜默截圖/錄影依賴 Shizuku shell 權限。請：\n1. 安裝 Shizuku（moe.shizuku.privileged.api）\n2. 在 Shizuku 中透過 ADB 或 Root 啟動服務\n3. 在 Shizuku 授權列表中允許「雨晴截屏」</string>
+
+    <!-- 首頁 · 狀態卡 -->
+    <string name="status_recording">錄影中</string>
+    <string name="status_recording_desc">目標 App 無感知 · 無狀態列指示 · %1$s</string>
+    <string name="status_completed">已完成</string>
+    <string name="status_completed_desc">已錄影 %1$d 秒 · 檔案在私有目錄</string>
+    <string name="status_failed">上次操作失敗</string>
+    <string name="status_idle">就緒</string>
+    <string name="status_idle_desc">Shizuku shell 通道待命中</string>
+
+    <!-- 首頁 · 使用說明卡 -->
+    <string name="info_title">使用說明</string>
+    <string name="info_body">• 截圖/錄影經 Shizuku shell 執行，不經 MediaProjection\n• 無系統彈出式視窗、無狀態列投放圖示、目標 App 無回呼\n• 快速設定圖塊可在任意介面下拉觸發（安全鎖定畫面除外）\n• 輸出儲存在 APP 私有目錄，歷史頁可預覽/分享/刪除</string>
+
+    <!-- 首頁 · 錯誤映射（Toast 與狀態卡同源） -->
+    <string name="err_shizuku_not_installed">Shizuku 未安裝，請先安裝並啟用 Shizuku</string>
+    <string name="err_shizuku_not_running">Shizuku 未執行，請到 Shizuku 應用程式啟動服務</string>
+    <string name="err_shizuku_not_granted">未授予本應用程式 Shizuku 權限，請在 Shizuku 中授權</string>
+    <string name="err_already_active">已在錄影中，請先停止目前錄影</string>
+    <string name="err_no_active_recording">目前沒有正在進行的錄影</string>
+    <string name="err_timeout">命令執行逾時，請重試（Shizuku 環境可能不穩定）</string>
+    <string name="err_still_alive">停止訊號未生效，錄影仍在進行，請重試停止</string>
+    <string name="err_kill_failed">停止訊號傳送失敗，錄影可能仍在進行，請重試</string>
+    <string name="err_pid_locate">錄影處理程序啟動異常（無法定位處理程序），已自動清理</string>
+    <string name="err_exited_unexpectedly">錄影處理程序異常退出，檔案可能不完整</string>
+
+    <!-- ═══ 設定頁 ═══ -->
+    <string name="settings_title">設定</string>
+    <string name="settings_reset_cd">恢復預設</string>
+    <string name="settings_env_section">Shizuku 環境</string>
+    <string name="settings_env_installed">已安裝</string>
+    <string name="settings_env_running">服務狀態</string>
+    <string name="settings_env_granted">本應用程式授權</string>
+    <string name="settings_env_ready">整體狀態</string>
+    <string name="settings_yes">是</string>
+    <string name="settings_no">否</string>
+    <string name="settings_env_running_yes">執行中</string>
+    <string name="settings_env_running_no">未執行</string>
+    <string name="settings_env_granted_yes">已授予</string>
+    <string name="settings_env_granted_no">未授予</string>
+    <string name="settings_env_ready_yes">就緒</string>
+    <string name="settings_env_ready_no">未就緒（依上述項目排查）</string>
+    <string name="settings_record_section">錄影參數</string>
+    <string name="settings_bitrate">位元率</string>
+    <string name="settings_size_label">解析度（留空=跟隨螢幕）</string>
+    <string name="settings_size_placeholder">例如 1280x720 或 1920x1080</string>
+    <string name="settings_time_limit">時長上限</string>
+    <string name="settings_time_unlimited">不限</string>
+    <string name="settings_time_15s">15秒</string>
+    <string name="settings_time_30s">30秒</string>
+    <string name="settings_time_1m">1分</string>
+    <string name="settings_time_3m">3分</string>
+    <string name="settings_time_5m">5分</string>
+    <string name="settings_time_10m">10分</string>
+    <string name="settings_time_unlimited_note">「不限」= 最長 1 小時自動收尾</string>
+    <string name="settings_display_id_label">display-id（留空=主螢幕）</string>
+    <string name="settings_display_id_placeholder">dumpsys SurfaceFlinger --display-id 查詢</string>
+    <string name="settings_bugreport_title">bugreport 疊加</string>
+    <string name="settings_bugreport_desc">錄影畫面疊加時間戳等系統資訊</string>
+    <string name="settings_screenshot_section">截圖參數</string>
+    <string name="settings_format_title">輸出格式</string>
+    <string name="settings_format_desc">PNG 檔案小、易於查看；RAW 為 16 位元組標頭+原始像素，檔案巨大</string>
+    <string name="settings_ball_section">懸浮球</string>
+    <string name="settings_ball_title">常駐懸浮控制球</string>
+    <string name="settings_ball_desc">任意介面點擊開始/停止錄影，可拖曳 · 權限優先經 Shizuku 靜默取得，失敗時才跳系統設定</string>
+    <string name="settings_language_section">語言</string>
+    <string name="settings_language_system">跟隨系統</string>
+    <string name="settings_language_zh">简体中文</string>
+    <string name="settings_language_zh_tw">繁體中文</string>
+    <string name="settings_language_en">English</string>
+    <string name="settings_about_section">關於</string>
+    <string name="settings_about_version">版本</string>
+    <string name="settings_about_project">專案</string>
+    <string name="settings_reset_confirm_title">恢復預設設定？</string>
+    <string name="settings_reset_confirm_body">將清除全部自訂參數（錄影/截圖參數）。懸浮球開關不受影響。</string>
+    <string name="settings_reset_confirm_button">恢復預設</string>
+
+    <!-- ═══ 歷史頁 ═══ -->
+    <string name="history_title">歷史記錄</string>
+    <string name="history_empty">暫無記錄\n截圖/錄影後自動出現在這裡</string>
+    <string name="history_raw_toast">RAW 原始資料無法預覽，可分享後用工具轉換</string>
+    <string name="history_delete_confirm_title">刪除這筆記錄？</string>
+    <string name="history_tap_preview">點擊預覽</string>
+    <string name="history_thumb_video">影片</string>
+    <string name="history_thumb_raw">RAW 原始資料</string>
+    <string name="history_thumb_image">圖片</string>
+    <string name="history_share_chooser">分享 %1$s</string>
+
+    <!-- ═══ 預覽頁 ═══ -->
+    <string name="preview_unavailable">無法預覽（RAW 檔案或解碼失敗）</string>
+    <string name="preview_play_error">播放失敗喵（錯誤 %1$d/%2$d）</string>
+
+    <!-- ═══ 懸浮球 ═══ -->
+    <string name="ball_menu_stop_record">■ 停止錄影</string>
+    <string name="ball_menu_start_record">● 開始錄影</string>
+    <string name="ball_menu_screenshot">📸 立即截圖</string>
+    <string name="ball_menu_latest_image">🖼 預覽最新截圖</string>
+    <string name="ball_menu_latest_video">🎬 預覽最新影片</string>
+    <string name="ball_toast_screenshot_failed">截圖失敗喵</string>
+    <string name="ball_toast_no_screenshot">還沒有截圖喵</string>
+    <string name="ball_toast_no_video">還沒有錄影喵</string>
+</resources>

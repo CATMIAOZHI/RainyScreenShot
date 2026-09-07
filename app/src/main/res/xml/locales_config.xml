@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 13+ per-app language list（系统「应用语言」设置项数据源）。
+     默认语言 = zh（简中），并列 zh-TW / en。 -->
+<locale-config xmlns:android="http://schemas.android.com/apk/res/android">
+    <locale android:name="zh" />
+    <locale android:name="zh-TW" />
+    <locale android:name="en" />
+</locale-config>
