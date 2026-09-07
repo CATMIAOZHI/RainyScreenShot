@@ -58,6 +58,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -80,6 +81,71 @@ class HomeViewModel @Inject constructor(
     /** 悬浮球开关状态（首页开关卡）。 */
     val floatingBallEnabled = floatingBallController.enabled
 
+    /** 任务栏磁贴状态（截屏/录屏磁贴是否在任务栏中）。 */
+    private val _tileStates = MutableStateFlow(TileStates(screenshot = false, record = false))
+    val tileStates: StateFlow<TileStates> = _tileStates.asStateFlow()
+
+    /** 任务栏磁贴状态对。 */
+    data class TileStates(val screenshot: Boolean, val record: Boolean)
+
+    /** 探测两个磁贴当前是否在任务栏中（Shizuku 就绪时）。 */
+    fun refreshTileStates() {
+        if (!shellExecutor.isEnvironmentReady()) return
+        viewModelScope.launch {
+            val ss = shellExecutor.hasQuickSettingsTile(
+                com.rainy.screenshot.trigger.ScreenshotTileService::class.java
+            )
+            val rec = shellExecutor.hasQuickSettingsTile(
+                com.rainy.screenshot.trigger.RecordTileService::class.java
+            )
+            _tileStates.value = TileStates(ss, rec)
+        }
+    }
+
+    /** 手动把截屏磁贴加入任务栏（§13 实测命令，幂等）。 */
+    fun addScreenshotTile(onDone: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            val ok = shellExecutor.addQuickSettingsTile(
+                com.rainy.screenshot.trigger.ScreenshotTileService::class.java
+            )
+            refreshTileStates()
+            onDone(ok)
+        }
+    }
+
+    /** 手动把录屏磁贴加入任务栏。 */
+    fun addRecordTile(onDone: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            val ok = shellExecutor.addQuickSettingsTile(
+                com.rainy.screenshot.trigger.RecordTileService::class.java
+            )
+            refreshTileStates()
+            onDone(ok)
+        }
+    }
+
+    /** 从任务栏移除截屏磁贴。 */
+    fun removeScreenshotTile(onDone: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            val ok = shellExecutor.removeQuickSettingsTile(
+                com.rainy.screenshot.trigger.ScreenshotTileService::class.java
+            )
+            refreshTileStates()
+            onDone(ok)
+        }
+    }
+
+    /** 从任务栏移除录屏磁贴。 */
+    fun removeRecordTile(onDone: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            val ok = shellExecutor.removeQuickSettingsTile(
+                com.rainy.screenshot.trigger.RecordTileService::class.java
+            )
+            refreshTileStates()
+            onDone(ok)
+        }
+    }
+
     /** 悬浮球开关切换（授权失败经 onNeedManualGrant 引导系统设置页）。 */
     fun toggleBall(on: Boolean, onNeedManualGrant: () -> Unit) {
         floatingBallController.toggle(on, onNeedManualGrant)
@@ -91,6 +157,9 @@ class HomeViewModel @Inject constructor(
 
     fun refreshEnv() {
         _envReady.value = shellExecutor.isEnvironmentReady()
+        // 磁贴状态随环境状态一起刷新（进首页时探测；授权结果按项目
+        // 既有约定「下次进入时反映」，不做生命周期强依赖）
+        refreshTileStates()
     }
 
     /**
@@ -273,6 +342,9 @@ fun HomeScreen(
                 viewModel = viewModel
             )
 
+            // ─── 任务栏磁贴（纯手动添加，两按钮） ───
+            TileSwitchCard(viewModel = viewModel)
+
             // 延时截屏（参数化入口，设置页可调）
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -305,6 +377,130 @@ fun HomeScreen(
 
             // 提示卡
             InfoCard()
+        }
+    }
+}
+
+/**
+ * 任务栏磁贴卡（首页直达，纯手动添加/移除）。
+ *
+ * - 截屏/录屏两行：当前状态 + 添加/移除按钮
+ * - 不自动注入：用户明确点击才操作任务栏（水晴要求）
+ * - 点击磁贴会自动收起面板再截/录，不会拍到面板
+ */
+@Composable
+private fun TileSwitchCard(viewModel: HomeViewModel) {
+    val context = LocalContext.current
+    val tileStates by viewModel.tileStates.collectAsState()
+    val envReady by viewModel.envReady.collectAsState()
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer
+        ),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Text(
+                "任务栏磁贴",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSecondaryContainer
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                "手动添加到下拉快捷面板；点磁贴自动收起面板再截/录，不拍到面板",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSecondaryContainer
+            )
+            Spacer(Modifier.height(12.dp))
+
+            TileRow(
+                title = "静默截屏磁贴",
+                added = tileStates.screenshot,
+                envReady = envReady,
+                onAdd = {
+                    viewModel.addScreenshotTile { ok ->
+                        if (!ok) {
+                            Toast.makeText(context, "添加失败，请稍后重试", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                },
+                onRemove = {
+                    viewModel.removeScreenshotTile { ok ->
+                        if (!ok) {
+                            Toast.makeText(context, "移除失败，请稍后重试", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            )
+            Spacer(Modifier.height(8.dp))
+            TileRow(
+                title = "静默录屏磁贴",
+                added = tileStates.record,
+                envReady = envReady,
+                onAdd = {
+                    viewModel.addRecordTile { ok ->
+                        if (!ok) {
+                            Toast.makeText(context, "添加失败，请稍后重试", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                },
+                onRemove = {
+                    viewModel.removeRecordTile { ok ->
+                        if (!ok) {
+                            Toast.makeText(context, "移除失败，请稍后重试", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            )
+        }
+    }
+}
+
+/** 单个任务栏磁贴行（标题 + 当前状态 + 添加/移除按钮）。 */
+@Composable
+private fun TileRow(
+    title: String,
+    added: Boolean,
+    envReady: Boolean,
+    onAdd: () -> Unit,
+    onRemove: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                title,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSecondaryContainer
+            )
+            Text(
+                when {
+                    !envReady -> "Shizuku 未就绪，无法操作"
+                    added -> "已在任务栏中"
+                    else -> "不在任务栏中"
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSecondaryContainer
+            )
+        }
+        if (added) {
+            TextButton(
+                onClick = onRemove,
+                enabled = envReady
+            ) {
+                Text("移除", color = MaterialTheme.colorScheme.error)
+            }
+        } else {
+            TextButton(
+                onClick = onAdd,
+                enabled = envReady
+            ) {
+                Text("添加")
+            }
         }
     }
 }
@@ -364,7 +560,7 @@ private fun BallSwitchCard(
             }
             Spacer(Modifier.height(8.dp))
             Text(
-                "• 截屏/录屏也可用磁贴：下拉通知栏编辑磁贴添加\n" +
+                "• 截屏/录屏也可用磁贴：主页磁贴卡一键添加\n" +
                 "• 产出在历史页可预览、分享",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSecondaryContainer

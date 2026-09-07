@@ -23,7 +23,7 @@ RainyScreenShot（雨晴截屏）— Silent Screenshot & Screen Recorder · the 
 |------|------|
 | 🤫 **静默截屏** | shell uid `screencap` 直取 framebuffer，前台 App 无任何回调与感知、无「禁止截屏」类提示（实测：录屏期间 `dumpsys media_projection` 始终为 null）；若窗口设了 FLAG_SECURE，其内容在画面中为黑块——系统级内容保护，任何方案均无法绕过 |
 | 🎬 **静默录屏** | shell uid `screenrecord`（v1.4）系统级编码器；开始/停止仅表现为进程 SIGINT，无投屏会话注册、无通知指示 |
-| ⚡ **快捷触发** | 三方式：APP 内按钮 · 悬浮控制球（OverlayManager TYPE_APPLICATION_OVERLAY）· 快捷磁贴（TileService，锁屏可用）。磁贴经 Shizuku 静默注入任务栏（授权成功自动添加，无需手动进编辑模式），点击自动收起面板再截/录，不拍到面板 |
+| ⚡ **快捷触发** | 三方式：APP 内按钮 · 悬浮控制球（OverlayManager TYPE_APPLICATION_OVERLAY）· 快捷磁贴（TileService，锁屏可用）。磁贴在主页手动添加（一键静默加入任务栏，无需进编辑模式），点击自动收起面板再截/录，不拍到面板 |
 | 🛠️ **自定义参数** | 截屏：PNG/RAW、指定 display-id、多显示器 `-a`。录屏：分辨率 `--size`、码率 `--bit-rate`（默认 8M）、时长 `--time-limit`（0=不限）、bugreport 时间戳叠加、`--display-id` |
 | 🎯 **区域截屏** | （阶段二）对截取结果做像素裁剪，无需 root |
 | ⏺️ **悬浮控制** | 录屏时显示半透明小控制球，点击即停；可整体隐藏，仅靠磁贴/APP 停止 |
@@ -105,10 +105,10 @@ RainyScreenShot/
 │   │   ├── FloatingBallService.kt    # 悬浮控制球（OverlayManager）
 │   │   └── FloatingBallController.kt # 悬浮球开关控制（Shizuku 静默授权）
 │   ├── ui/
-│   │   ├── home/          # 首页：状态卡 + 快捷截屏/录屏
+│   │   ├── home/          # 首页：状态卡 + 快捷截屏/录屏 + 磁贴管理
 │   │   ├── history/       # 结果浏览（私有 MediaStore/应用目录）
 │   │   ├── preview/       # 图片/视频预览（FileProvider 分享）
-│   │   ├── settings/      # 参数自定义页 + 磁贴管理
+│   │   ├── settings/      # 参数自定义页
 │   │   └── theme/         # 雨晴粉主题
 │   └── data/
 │       └── local/         # DataStore/SharedPreferences 持久化

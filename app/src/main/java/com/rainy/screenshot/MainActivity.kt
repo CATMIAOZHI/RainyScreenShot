@@ -70,12 +70,9 @@ class MainActivity : ComponentActivity() {
 
         // 注册结果监听（回调线程为主线程，安全更新 UI）
         shizukuPermissionListener = Shizuku.OnRequestPermissionResultListener { requestCode, grantResult ->
-            // E-补：授权成功 → 立即补注入磁贴（不等下次启动；幂等，
-            // 冷启动已注入过则标记短路，不重复操作）
-            if (grantResult == PackageManager.PERMISSION_GRANTED) {
-                (application as com.rainy.screenshot.RainyScreenShotApplication)
-                    .injectQuickSettingsTilesOnce()
-            }
+            // 结果由首页 SettingInfo/EnvGuideCard 的 refresh() 在下次进入时反映；
+            // 此处不做 UI 强依赖，避免生命周期耦合
+            // 磁贴为纯手动添加（主页「任务栏磁贴」卡），授权成功不自动注入
         }
         Shizuku.addRequestPermissionResultListener(shizukuPermissionListener!!)
 

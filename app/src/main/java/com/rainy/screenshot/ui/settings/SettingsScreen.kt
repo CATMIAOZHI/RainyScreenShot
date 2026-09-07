@@ -1,7 +1,6 @@
 package com.rainy.screenshot.ui.settings
 
 import android.content.Intent
-import android.widget.Toast
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -108,8 +107,6 @@ class SettingsViewModel @Inject constructor(
             running = shellExecutor.isShizukuRunning(),
             granted = shellExecutor.isShizukuGranted()
         )
-        // 磁贴状态随环境状态一起刷新（进设置页/授权后变化均覆盖）
-        refreshTileStates()
     }
 
     fun setBitrate(mbps: Int) = launchEdit {
@@ -151,78 +148,6 @@ class SettingsViewModel @Inject constructor(
         floatingBallController.toggle(on, onNeedManualGrant)
     }
 
-    /** 任务栏磁贴状态（截屏/录屏是否在任务栏）。 */
-    private val _tileStates = MutableStateFlow(TileStates(screenshot = false, record = false))
-    val tileStates: StateFlow<TileStates> = _tileStates.asStateFlow()
-
-    /** 任务栏磁贴状态对（进入设置页/操作后刷新）。 */
-    data class TileStates(val screenshot: Boolean, val record: Boolean)
-
-    /** 探测两个磁贴当前是否在任务栏中（Shizuku 就绪时）。 */
-    fun refreshTileStates() {
-        // 未就绪时保持当前显示值（不误显示「已添加」）；就绪才探测
-        if (!shellExecutor.isEnvironmentReady()) return
-        viewModelScope.launch {
-            val ss = shellExecutor.hasQuickSettingsTile(
-                com.rainy.screenshot.trigger.ScreenshotTileService::class.java
-            )
-            val rec = shellExecutor.hasQuickSettingsTile(
-                com.rainy.screenshot.trigger.RecordTileService::class.java
-            )
-            _tileStates.value = TileStates(ss, rec)
-        }
-    }
-
-    /** 手动把截屏磁贴加入任务栏（§13 实测命令，幂等）。 */
-    fun addScreenshotTile(onDone: (Boolean) -> Unit) {
-        viewModelScope.launch {
-            val ok = shellExecutor.addQuickSettingsTile(
-                com.rainy.screenshot.trigger.ScreenshotTileService::class.java
-            )
-            if (ok) {
-                settingsStore.setQuickSettingsTilesInjected(true)
-            }
-            refreshTileStates()
-            onDone(ok)
-        }
-    }
-
-    /** 手动把录屏磁贴加入任务栏。 */
-    fun addRecordTile(onDone: (Boolean) -> Unit) {
-        viewModelScope.launch {
-            val ok = shellExecutor.addQuickSettingsTile(
-                com.rainy.screenshot.trigger.RecordTileService::class.java
-            )
-            if (ok) {
-                settingsStore.setQuickSettingsTilesInjected(true)
-            }
-            refreshTileStates()
-            onDone(ok)
-        }
-    }
-
-    /** 从任务栏移除截屏磁贴（用户主动撤销自动注入）。 */
-    fun removeScreenshotTile(onDone: (Boolean) -> Unit) {
-        viewModelScope.launch {
-            val ok = shellExecutor.removeQuickSettingsTile(
-                com.rainy.screenshot.trigger.ScreenshotTileService::class.java
-            )
-            refreshTileStates()
-            onDone(ok)
-        }
-    }
-
-    /** 从任务栏移除录屏磁贴。 */
-    fun removeRecordTile(onDone: (Boolean) -> Unit) {
-        viewModelScope.launch {
-            val ok = shellExecutor.removeQuickSettingsTile(
-                com.rainy.screenshot.trigger.RecordTileService::class.java
-            )
-            refreshTileStates()
-            onDone(ok)
-        }
-    }
-
     fun setScreenshotDisplayId(id: String) = launchEdit {
         settingsStore.setScreenshotConfig(
             screenshotConfig.value.copy(displayId = id.toLongOrNull())
@@ -259,7 +184,6 @@ fun SettingsScreen(
     val recordConfig by viewModel.recordConfig.collectAsState()
     val screenshotConfig by viewModel.screenshotConfig.collectAsState()
     val floatingBallEnabled by viewModel.floatingBallEnabled.collectAsState()
-    val tileStates by viewModel.tileStates.collectAsState()
     // B-E6 修复：resetAll 不可逆操作加确认对话框（此前点一下即静默清空
     // 全部自定义参数）
     var showResetConfirm by androidx.compose.runtime.remember {
@@ -515,70 +439,6 @@ fun SettingsScreen(
                 }
             }
 
-            SectionCard("任务栏磁贴") {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        "首次授权成功后会自动添加（§13 实测：经 Shizuku 静默注入任务栏）。" +
-                            "点磁贴截屏前自动收起面板再截，不会把面板拍进截图。",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(Modifier.height(12.dp))
-
-                    TileRow(
-                        title = "静默截屏磁贴",
-                        added = tileStates.screenshot,
-                        envReady = env.ready,
-                        onAdd = {
-                            viewModel.addScreenshotTile { ok ->
-                                if (!ok) {
-                                    Toast.makeText(
-                                        context, "添加失败，请稍后重试",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                }
-                            }
-                        },
-                        onRemove = {
-                            viewModel.removeScreenshotTile { ok ->
-                                if (!ok) {
-                                    Toast.makeText(
-                                        context, "移除失败，请稍后重试",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                }
-                            }
-                        }
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    TileRow(
-                        title = "静默录屏磁贴",
-                        added = tileStates.record,
-                        envReady = env.ready,
-                        onAdd = {
-                            viewModel.addRecordTile { ok ->
-                                if (!ok) {
-                                    Toast.makeText(
-                                        context, "添加失败，请稍后重试",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                }
-                            }
-                        },
-                        onRemove = {
-                            viewModel.removeRecordTile { ok ->
-                                if (!ok) {
-                                    Toast.makeText(
-                                        context, "移除失败，请稍后重试",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                }
-                            }
-                        }
-                    )
-                }
-            }
-
             SectionCard("关于") {
                 SettingInfo("版本", "0.1.0")
                 Spacer(Modifier.height(8.dp))
@@ -683,48 +543,5 @@ private fun SettingInfo(
             value,
             style = MaterialTheme.typography.bodyMedium
         )
-    }
-}
-
-/** 单个任务栏磁贴行（标题 + 当前状态 + 添加/移除按钮）。 */
-@Composable
-private fun TileRow(
-    title: String,
-    added: Boolean,
-    envReady: Boolean,
-    onAdd: () -> Unit,
-    onRemove: () -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyMedium)
-            Text(
-                when {
-                    !envReady -> "Shizuku 未就绪，无法操作"
-                    added -> "已在任务栏中"
-                    else -> "不在任务栏中"
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        if (added) {
-            TextButton(
-                onClick = onRemove,
-                enabled = envReady
-            ) {
-                Text("移除", color = MaterialTheme.colorScheme.error)
-            }
-        } else {
-            TextButton(
-                onClick = onAdd,
-                enabled = envReady
-            ) {
-                Text("添加")
-            }
-        }
     }
 }

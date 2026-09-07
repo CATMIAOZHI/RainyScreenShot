@@ -283,7 +283,7 @@ class ShellExecutor @Inject constructor(
     }
 
     /**
-     * 从任务栏移除磁贴（设置页手动入口，供用户撤销自动添加）。
+     * 从任务栏移除磁贴（主页「任务栏磁贴」卡手动入口）。
      */
     suspend fun removeQuickSettingsTile(tileClass: Class<*>): Boolean {
         val component = "${appContext.packageName}/${tileClass.name}"

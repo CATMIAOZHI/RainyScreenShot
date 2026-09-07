@@ -53,21 +53,6 @@ var Context.floatingBallEnabled: Boolean
     }
 private const val KEY = "floating_ball_enabled"
 
-/**
- * 磁贴自动注入标记（SharedPreferences 持久化）。
- *
- * 首次 Shizuku 授权成功后自动把截屏/录屏磁贴加进任务栏（§13 实测：
- * add-tile 幂等且 EXIT=0）。标记的语义是「本次安装生命周期内已注入过」：
- * - 用户手动从任务栏移除后不自动加回（尊重用户布局，防「删不掉的磁贴」）
- * - 重装/清数据后重新注入
- */
-var Context.quickSettingsTilesInjected: Boolean
-    get() = ballPrefs.getBoolean(TILES_KEY, false)
-    set(value) {
-        ballPrefs.edit().putBoolean(TILES_KEY, value).commit()
-    }
-private const val TILES_KEY = "qs_tiles_injected"
-
 @Singleton
 class SettingsStore @Inject constructor(
     @ApplicationContext private val context: Context
@@ -132,14 +117,6 @@ class SettingsStore @Inject constructor(
     fun setFloatingBallEnabled(enabled: Boolean) {
         context.floatingBallEnabled = enabled
         _ballEnabled.value = enabled
-    }
-
-    /** 磁贴注入标记直读（授权回调处判断）。 */
-    fun areQuickSettingsTilesInjected(): Boolean = context.quickSettingsTilesInjected
-
-    /** 磁贴注入标记写入。 */
-    fun setQuickSettingsTilesInjected(injected: Boolean) {
-        context.quickSettingsTilesInjected = injected
     }
 
     /* ── 写（挂起函数，设置页调用） ── */
