@@ -1,6 +1,7 @@
 package com.rainy.screenshot.ui.settings
 
 import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -54,6 +55,7 @@ import com.rainy.screenshot.R
 import com.rainy.screenshot.capture.RecordConfig
 import com.rainy.screenshot.capture.ScreenshotConfig
 import com.rainy.screenshot.capture.ScreenshotFormat
+import com.rainy.screenshot.capture.ServiceBackend
 import com.rainy.screenshot.capture.ShellExecutor
 import com.rainy.screenshot.data.local.SettingsStore
 import com.rainy.screenshot.util.LocaleCompat
@@ -87,6 +89,12 @@ class SettingsViewModel @Inject constructor(
     )
     val env: StateFlow<EnvStatus> = _env.asStateFlow()
 
+    private val _backend = MutableStateFlow(ServiceBackend.AUTO)
+    val backend: StateFlow<ServiceBackend> = _backend.asStateFlow()
+
+    private val _backendChangeSaved = MutableStateFlow(false)
+    val backendChangeSaved: StateFlow<Boolean> = _backendChangeSaved.asStateFlow()
+
     /** 录屏参数（DataStore 持久化） */
     val recordConfig: StateFlow<RecordConfig> = settingsStore.recordConfigFlow.stateIn(
         viewModelScope, SharingStarted.Eagerly, RecordConfig.DEFAULT
@@ -105,11 +113,23 @@ class SettingsViewModel @Inject constructor(
         )
 
     fun refresh() {
+        _backend.value = shellExecutor.activeBackend()
         _env.value = EnvStatus(
-            installed = shellExecutor.isShizukuInstalled(),
-            running = shellExecutor.isShizukuRunning(),
-            granted = shellExecutor.isShizukuGranted()
+            installed = shellExecutor.isSelectedBackendInstalled(),
+            running = shellExecutor.isSelectedBackendRunning(),
+            granted = shellExecutor.isSelectedBackendGranted()
         )
+    }
+
+    fun setBackend(backend: ServiceBackend) {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val saved = runCatching {
+                shellExecutor.setBackendForNextProcess(backend)
+            }.getOrDefault(false)
+            if (saved) {
+                _backendChangeSaved.value = true
+            }
+        }
     }
 
     fun setBitrate(mbps: Int) = launchEdit {
@@ -189,6 +209,8 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val env by viewModel.env.collectAsState()
+    val backend by viewModel.backend.collectAsState()
+    val backendChangeSaved by viewModel.backendChangeSaved.collectAsState()
     val recordConfig by viewModel.recordConfig.collectAsState()
     val screenshotConfig by viewModel.screenshotConfig.collectAsState()
     val floatingBallEnabled by viewModel.floatingBallEnabled.collectAsState()
@@ -237,6 +259,72 @@ fun SettingsScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            SectionCard(stringResource(R.string.settings_backend_section)) {
+                Text(
+                    stringResource(R.string.settings_backend_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(8.dp))
+                ServiceBackend.entries.forEach { option ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .selectable(
+                                selected = backend == option,
+                                onClick = { viewModel.setBackend(option) }
+                            )
+                            .padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = backend == option,
+                            onClick = { viewModel.setBackend(option) }
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Column {
+                            Text(
+                                when (option) {
+                                    ServiceBackend.AUTO -> stringResource(R.string.settings_backend_auto)
+                                    ServiceBackend.PORTER -> stringResource(R.string.settings_backend_porter)
+                                    ServiceBackend.SHIZUKU -> stringResource(R.string.settings_backend_shizuku)
+                                },
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                when (option) {
+                                    ServiceBackend.AUTO -> stringResource(R.string.settings_backend_auto_desc)
+                                    ServiceBackend.PORTER -> stringResource(R.string.settings_backend_porter_desc)
+                                    ServiceBackend.SHIZUKU -> stringResource(R.string.settings_backend_shizuku_desc)
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+                if (backendChangeSaved) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        stringResource(R.string.settings_backend_restart_note),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    TextButton(
+                        onClick = {
+                            context.startActivity(
+                                Intent(
+                                    android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                    Uri.parse("package:${context.packageName}")
+                                )
+                            )
+                        }
+                    ) {
+                        Text(stringResource(R.string.settings_backend_open_app_info))
+                    }
+                }
+            }
+
             SectionCard(stringResource(R.string.settings_env_section)) {
                 SettingInfo(
                 stringResource(R.string.settings_env_installed),
