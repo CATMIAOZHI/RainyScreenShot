@@ -188,8 +188,7 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
 
     // Shizuku
-    implementation(libs.shizuku.api)
-    implementation(libs.shizuku.provider)
+    implementation(libs.porter.client)
 
     // DI (Hilt + KSP)
     implementation(libs.hilt.android)
