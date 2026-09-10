@@ -210,15 +210,24 @@ class HomeViewModel @Inject constructor(
 
     private fun friendlyError(e: Exception): String =
         friendlyErrorText(LocaleCompat.localized(appContext), when (e) {
-            is ShellException.NotInstalled -> "SHIZUKU_NOT_INSTALLED"
-            is ShellException.NotRunning -> "SHIZUKU_NOT_RUNNING"
-            is ShellException.NotGranted -> "SHIZUKU_NOT_GRANTED"
+            is ShellException.NotInstalled ->
+                if (e.backend == com.rainy.screenshot.capture.ServiceBackend.PORTER) "PORTER_NOT_INSTALLED"
+                else "SHIZUKU_NOT_INSTALLED"
+            is ShellException.NotRunning ->
+                if (e.backend == com.rainy.screenshot.capture.ServiceBackend.PORTER) "PORTER_NOT_RUNNING"
+                else "SHIZUKU_NOT_RUNNING"
+            is ShellException.NotGranted ->
+                if (e.backend == com.rainy.screenshot.capture.ServiceBackend.PORTER) "PORTER_NOT_GRANTED"
+                else "SHIZUKU_NOT_GRANTED"
             else -> e.message ?: ""
         })
 }
 
 /** 引擎/管理器英文 reason → 本地化可读文案（单一出口，Toast 与状态卡共用）。 */
 fun friendlyErrorText(context: android.content.Context, raw: String): String = when {
+    raw == "PORTER_NOT_INSTALLED" -> context.getString(R.string.err_porter_not_installed)
+    raw == "PORTER_NOT_RUNNING" -> context.getString(R.string.err_porter_not_running)
+    raw == "PORTER_NOT_GRANTED" -> context.getString(R.string.err_porter_not_granted)
     raw == "SHIZUKU_NOT_INSTALLED" -> context.getString(R.string.err_shizuku_not_installed)
     raw == "SHIZUKU_NOT_RUNNING" -> context.getString(R.string.err_shizuku_not_running)
     raw == "SHIZUKU_NOT_GRANTED" -> context.getString(R.string.err_shizuku_not_granted)
