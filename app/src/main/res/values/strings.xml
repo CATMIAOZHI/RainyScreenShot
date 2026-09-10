@@ -10,11 +10,9 @@
     <string name="common_share">分享</string>
     <string name="common_no_recording">当前没有正在进行的录制</string>
     <string name="common_unknown_error">未知错误</string>
-
     <!-- ═══ 磁贴标签（任务栏显示名） ═══ -->
     <string name="tile_screenshot">静默截屏</string>
     <string name="tile_record">静默录屏</string>
-
     <!-- ═══ 首页 ═══ -->
     <string name="home_nav_history">历史</string>
     <string name="home_nav_settings">设置</string>
@@ -27,7 +25,6 @@
     <string name="home_delay_toast_start">3 秒后截屏</string>
     <string name="home_delay_toast_done">延迟截屏完成</string>
     <string name="home_delay_toast_failed">延迟截屏失败：%1$s</string>
-
     <!-- 首页 · 任务栏磁贴卡 -->
     <string name="tile_card_title">任务栏磁贴</string>
     <string name="tile_card_desc">手动添加到下拉快捷面板；点磁贴自动收起面板再截/录，不拍到面板</string>
@@ -40,18 +37,15 @@
     <string name="tile_state_env_not_ready">Shizuku 未就绪，无法操作</string>
     <string name="tile_state_added">已在任务栏中</string>
     <string name="tile_state_not_added">不在任务栏中</string>
-
     <!-- 首页 · 悬浮球卡 -->
     <string name="ball_card_title">悬浮球</string>
     <string name="ball_card_on">已开启 · 任意界面可截屏/录屏/预览</string>
     <string name="ball_card_off">关闭中 · 开启后任意界面可用</string>
     <string name="ball_card_hint">• 截屏/录屏也可用磁贴：主页磁贴卡一键添加\n• 产出在历史页可预览、分享</string>
     <string name="ball_card_history">看历史产出</string>
-
     <!-- 首页 · 环境引导卡 -->
     <string name="env_guide_title">Shizuku 环境未就绪</string>
     <string name="env_guide_body">静默截屏/录屏依赖 Shizuku shell 权限。请：\n1. 安装 Shizuku（moe.shizuku.privileged.api）\n2. 在 Shizuku 中通过 ADB 或 Root 启动服务\n3. 在 Shizuku 授权列表中允许「雨晴截屏」</string>
-
     <!-- 首页 · 状态卡 -->
     <string name="status_recording">录制中</string>
     <string name="status_recording_desc">目标 App 无感知 · 无状态栏指示 · %1$s</string>
@@ -60,12 +54,13 @@
     <string name="status_failed">上次操作失败</string>
     <string name="status_idle">就绪</string>
     <string name="status_idle_desc">Shizuku shell 通道待命</string>
-
     <!-- 首页 · 使用说明卡 -->
     <string name="info_title">使用说明</string>
     <string name="info_body">• 截屏/录屏经 Shizuku shell 执行，不经 MediaProjection\n• 无系统弹窗、无状态栏投屏图标、目标 App 无回调\n• 快捷磁贴可在任意界面下拉触发（安全锁屏下除外）\n• 输出保存在 APP 私有目录，历史页可预览/分享/删除</string>
-
     <!-- 首页 · 错误映射（Toast 与状态卡同源） -->
+    <string name="err_porter_not_installed">未安装 Porter，请安装 Porter 或选择其他后端</string>
+    <string name="err_porter_not_running">Porter 未运行，请启动 Porter 或选择其他后端</string>
+    <string name="err_porter_not_granted">未授予 Porter 权限，请在 Porter 中允许本应用</string>
     <string name="err_shizuku_not_installed">Shizuku 未安装，请先安装并激活 Shizuku</string>
     <string name="err_shizuku_not_running">Shizuku 未运行，请到 Shizuku 应用启动服务</string>
     <string name="err_shizuku_not_granted">未授予本应用 Shizuku 权限，请在 Shizuku 中授权</string>
@@ -76,11 +71,20 @@
     <string name="err_kill_failed">停止信号发送失败，录制可能仍在进行，请重试</string>
     <string name="err_pid_locate">录屏进程启动异常（无法定位进程），已自动清理</string>
     <string name="err_exited_unexpectedly">录屏进程异常退出，文件可能不完整</string>
-
     <!-- ═══ 设置页 ═══ -->
     <string name="settings_title">设置</string>
+    <string name="settings_backend_section">服务后端</string>
+    <string name="settings_backend_desc">选择由 Porter 或 Shizuku 提供兼容的 Shizuku API。更改后需要完整强制停止应用，再重新打开。</string>
+    <string name="settings_backend_auto">自动</string>
+    <string name="settings_backend_auto_desc">优先 Porter；未安装 Porter 时使用 Shizuku</string>
+    <string name="settings_backend_porter">Porter</string>
+    <string name="settings_backend_porter_desc">始终使用 Porter；Porter 未运行时不会自动切换到 Shizuku</string>
+    <string name="settings_backend_shizuku">Shizuku</string>
+    <string name="settings_backend_shizuku_desc">始终使用 Shizuku</string>
+    <string name="settings_backend_restart_note">已保存。当前进程不会切换后端，请先在应用信息中强制停止，再重新打开。</string>
+    <string name="settings_backend_open_app_info">打开应用信息</string>
     <string name="settings_reset_cd">恢复默认</string>
-    <string name="settings_env_section">Shizuku 环境</string>
+    <string name="settings_env_section">当前服务环境</string>
     <string name="settings_env_installed">已安装</string>
     <string name="settings_env_running">服务运行</string>
     <string name="settings_env_granted">本应用授权</string>
@@ -127,7 +131,6 @@
     <string name="settings_reset_confirm_title">恢复默认设置？</string>
     <string name="settings_reset_confirm_body">将清除全部自定义参数（录屏/截屏参数）。悬浮球开关不受影响。</string>
     <string name="settings_reset_confirm_button">恢复默认</string>
-
     <!-- ═══ 历史页 ═══ -->
     <string name="history_title">历史记录</string>
     <string name="history_empty">暂无记录\n截屏/录屏后自动出现在这里</string>
@@ -138,11 +141,9 @@
     <string name="history_thumb_raw">RAW 原始数据</string>
     <string name="history_thumb_image">图片</string>
     <string name="history_share_chooser">分享 %1$s</string>
-
     <!-- ═══ 预览页 ═══ -->
     <string name="preview_unavailable">无法预览（RAW 文件或解码失败）</string>
     <string name="preview_play_error">播放失败喵（错误 %1$d/%2$d）</string>
-
     <!-- ═══ 悬浮球 ═══ -->
     <string name="ball_menu_stop_record">■ 停止录屏</string>
     <string name="ball_menu_start_record">● 开始录屏</string>
