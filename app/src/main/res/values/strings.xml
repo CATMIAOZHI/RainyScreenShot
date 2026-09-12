@@ -45,7 +45,9 @@
     <string name="ball_card_history">看历史产出</string>
     <!-- 首页 · 环境引导卡 -->
     <string name="env_guide_title">Shizuku 环境未就绪</string>
+    <string name="env_guide_title_porter">Porter 环境未就绪</string>
     <string name="env_guide_body">静默截屏/录屏依赖 Shizuku shell 权限。请：\n1. 安装 Shizuku（moe.shizuku.privileged.api）\n2. 在 Shizuku 中通过 ADB 或 Root 启动服务\n3. 在 Shizuku 授权列表中允许「雨晴截屏」</string>
+    <string name="env_guide_body_porter">静默截屏/录屏依赖 Porter shell 权限。请：\n1. 安装 Porter（eu.darken.porter）\n2. 在 Porter 中通过 ADB 或 Root 启动服务\n3. 在 Porter 授权列表中允许「雨晴截屏」</string>
     <!-- 首页 · 状态卡 -->
     <string name="status_recording">录制中</string>
     <string name="status_recording_desc">目标 App 无感知 · 无状态栏指示 · %1$s</string>

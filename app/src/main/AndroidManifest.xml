@@ -7,7 +7,7 @@
         权限策略（隐身性 + 最小权限优先）：
         - 无前台服务、无通知 → 不申请 POST_NOTIFICATIONS / FGS_*
         - SYSTEM_ALERT_WINDOW 仅悬浮控制球使用（阶段 2 交付时申请）
-        - Shizuku 权限通过其 Provider 声明动态请求，不占 manifest 权限位
+        - Porter/Shizuku 各声明一条 API_V23 权限（双后端集成要求）；运行时授权仍经 Provider 动态申请
         - 不申请任何与本项目无关的权限
     -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />

@@ -113,7 +113,8 @@ class SettingsViewModel @Inject constructor(
         )
 
     fun refresh() {
-        _backend.value = shellExecutor.activeBackend()
+        // B1 修复：选中态展示「保存的偏好」（activeBackend 是进程内解析值，重启前不随保存变化）
+        _backend.value = shellExecutor.preferredBackend()
         _env.value = EnvStatus(
             installed = shellExecutor.isSelectedBackendInstalled(),
             running = shellExecutor.isSelectedBackendRunning(),
@@ -127,6 +128,8 @@ class SettingsViewModel @Inject constructor(
                 shellExecutor.setBackendForNextProcess(backend)
             }.getOrDefault(false)
             if (saved) {
+                // B1 修复：保存成功立即更新选中态（实际切换仍需强杀重启，提示已告知）
+                _backend.value = backend
                 _backendChangeSaved.value = true
             }
         }

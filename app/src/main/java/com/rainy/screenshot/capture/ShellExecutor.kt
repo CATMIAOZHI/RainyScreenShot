@@ -67,6 +67,16 @@ class ShellExecutor @Inject constructor(
             }
         }.getOrDefault(ServiceBackend.AUTO)
 
+    /** 用户保存的后端偏好（设置页选择器展示用）；AUTO 表示未指定（默认自动）。 */
+    fun preferredBackend(): ServiceBackend =
+        runCatching {
+            when (PorterClient.getPreferredBackend(appContext)) {
+                PorterClient.Backend.PORTER -> ServiceBackend.PORTER
+                PorterClient.Backend.SHIZUKU -> ServiceBackend.SHIZUKU
+                PorterClient.Backend.AUTO -> ServiceBackend.AUTO
+            }
+        }.getOrDefault(ServiceBackend.AUTO)
+
     /**
      * 保存下一次进程启动使用的后端。
      *
@@ -143,7 +153,7 @@ class ShellExecutor @Inject constructor(
         return try {
             RemoteProcessAdapter.create(arrayOf("sh", "-c", command))
         } catch (e: IllegalStateException) {
-            throw ShellException.NotRunning()
+            throw ShellException.NotRunning(activeBackend())
         } catch (e: ShellException) {
             throw e
         } catch (e: Exception) {
@@ -167,7 +177,7 @@ class ShellExecutor @Inject constructor(
         val process: Process = try {
             RemoteProcessAdapter.create(arrayOf("sh", "-c", command))
         } catch (e: IllegalStateException) {
-            throw ShellException.NotRunning()
+            throw ShellException.NotRunning(activeBackend())
         } catch (e: ShellException) {
             throw e
         } catch (e: Exception) {

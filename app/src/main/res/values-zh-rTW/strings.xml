@@ -45,7 +45,9 @@
     <string name="ball_card_history">看歷史產出</string>
     <!-- 首頁 · 環境引導卡 -->
     <string name="env_guide_title">Shizuku 環境未就緒</string>
+    <string name="env_guide_title_porter">Porter 環境未就緒</string>
     <string name="env_guide_body">靜默截圖/錄影依賴 Shizuku shell 權限。請：\n1. 安裝 Shizuku（moe.shizuku.privileged.api）\n2. 在 Shizuku 中透過 ADB 或 Root 啟動服務\n3. 在 Shizuku 授權列表中允許「雨晴截屏」</string>
+    <string name="env_guide_body_porter">靜默截圖/錄影依賴 Porter shell 權限。請：\n1. 安裝 Porter（eu.darken.porter）\n2. 在 Porter 中透過 ADB 或 Root 啟動服務\n3. 在 Porter 授權列表中允許「雨晴截屏」</string>
     <!-- 首頁 · 狀態卡 -->
     <string name="status_recording">錄影中</string>
     <string name="status_recording_desc">目標 App 無感知 · 無狀態列指示 · %1$s</string>
@@ -84,7 +86,7 @@
     <string name="settings_backend_restart_note">已儲存。目前程序不會切換後端，請先在應用程式資訊中強制停止，再重新開啟。</string>
     <string name="settings_backend_open_app_info">開啟應用程式資訊</string>
     <string name="settings_reset_cd">恢復預設</string>
-    <string name="settings_env_section">Shizuku 環境</string>
+    <string name="settings_env_section">目前服務環境</string>
     <string name="settings_env_installed">已安裝</string>
     <string name="settings_env_running">服務狀態</string>
     <string name="settings_env_granted">本應用程式授權</string>

@@ -45,7 +45,9 @@
     <string name="ball_card_history">View history</string>
     <!-- Home · Environment guide card -->
     <string name="env_guide_title">Shizuku not ready</string>
+    <string name="env_guide_title_porter">Porter not ready</string>
     <string name="env_guide_body">Silent capture requires Shizuku shell permission. Please:\n1. Install Shizuku (moe.shizuku.privileged.api)\n2. Start its service via ADB or Root\n3. Grant permission to “Rainy Screenshot” in Shizuku</string>
+    <string name="env_guide_body_porter">Silent capture requires Porter shell permission. Please:\n1. Install Porter (eu.darken.porter)\n2. Start its service via ADB or Root in Porter\n3. Grant permission to “Rainy Screenshot” in Porter</string>
     <!-- Home · Status card -->
     <string name="status_recording">Recording</string>
     <string name="status_recording_desc">Invisible to the target app · No status-bar indicator · %1$s</string>
@@ -84,7 +86,7 @@
     <string name="settings_backend_restart_note">Saved. The current process will not switch backends. Force-stop the app from App info, then reopen it.</string>
     <string name="settings_backend_open_app_info">Open App info</string>
     <string name="settings_reset_cd">Reset to defaults</string>
-    <string name="settings_env_section">Shizuku environment</string>
+    <string name="settings_env_section">Service environment</string>
     <string name="settings_env_installed">Installed</string>
     <string name="settings_env_running">Service status</string>
     <string name="settings_env_granted">App permission</string>

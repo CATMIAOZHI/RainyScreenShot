@@ -50,6 +50,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rainy.screenshot.R
+import com.rainy.screenshot.capture.ServiceBackend
 import com.rainy.screenshot.capture.ShellException
 import com.rainy.screenshot.session.RecordingSessionManager
 import com.rainy.screenshot.ui.theme.StatusGreen
@@ -157,7 +158,12 @@ class HomeViewModel @Inject constructor(
     private val _envReady = MutableStateFlow(true)
     val envReady: StateFlow<Boolean> = _envReady
 
+    /** 当前生效后端（B2 修复：引导卡按后端展示对应指引） */
+    private val _backend = MutableStateFlow(ServiceBackend.AUTO)
+    val backend: StateFlow<ServiceBackend> = _backend.asStateFlow()
+
     fun refreshEnv() {
+        _backend.value = shellExecutor.activeBackend()
         _envReady.value = shellExecutor.isEnvironmentReady()
         // 磁贴状态随环境状态一起刷新（进首页时探测；授权结果按项目
         // 既有约定「下次进入时反映」，不做生命周期强依赖）
@@ -211,13 +217,13 @@ class HomeViewModel @Inject constructor(
     private fun friendlyError(e: Exception): String =
         friendlyErrorText(LocaleCompat.localized(appContext), when (e) {
             is ShellException.NotInstalled ->
-                if (e.backend == com.rainy.screenshot.capture.ServiceBackend.PORTER) "PORTER_NOT_INSTALLED"
+                if (e.backend == ServiceBackend.PORTER) "PORTER_NOT_INSTALLED"
                 else "SHIZUKU_NOT_INSTALLED"
             is ShellException.NotRunning ->
-                if (e.backend == com.rainy.screenshot.capture.ServiceBackend.PORTER) "PORTER_NOT_RUNNING"
+                if (e.backend == ServiceBackend.PORTER) "PORTER_NOT_RUNNING"
                 else "SHIZUKU_NOT_RUNNING"
             is ShellException.NotGranted ->
-                if (e.backend == com.rainy.screenshot.capture.ServiceBackend.PORTER) "PORTER_NOT_GRANTED"
+                if (e.backend == ServiceBackend.PORTER) "PORTER_NOT_GRANTED"
                 else "SHIZUKU_NOT_GRANTED"
             else -> e.message ?: ""
         })
@@ -268,6 +274,7 @@ fun HomeScreen(
     val context = LocalContext.current
     val sessionState by viewModel.sessionState.collectAsState()
     val envReady by viewModel.envReady.collectAsState()
+    val backend by viewModel.backend.collectAsState()
 
     // 进入页面时刷新环境状态（E2：真实探测替代假设）
     LaunchedEffect(Unit) { viewModel.refreshEnv() }
@@ -304,9 +311,9 @@ fun HomeScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // E2 修复：环境未就绪时展示引导卡
+            // E2 修复：环境未就绪时展示引导卡（B2 修复：按所选后端展示对应指引）
             if (!envReady) {
-                EnvGuideCard()
+                EnvGuideCard(backend)
             }
 
             // ─── 状态卡 ───
@@ -607,9 +614,10 @@ private fun BallSwitchCard(
     }
 }
 
-/** E2 修复：环境未就绪引导卡（替代静默失败）。 */
+/** E2 修复：环境未就绪引导卡（替代静默失败）；B2 修复：按所选后端展示对应指引。 */
 @Composable
-private fun EnvGuideCard() {
+private fun EnvGuideCard(backend: ServiceBackend) {
+    val isPorter = backend == ServiceBackend.PORTER
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -619,13 +627,19 @@ private fun EnvGuideCard() {
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Text(
-                stringResource(R.string.env_guide_title),
+                stringResource(
+                    if (isPorter) R.string.env_guide_title_porter
+                    else R.string.env_guide_title
+                ),
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onErrorContainer
             )
             Spacer(Modifier.height(6.dp))
             Text(
-                stringResource(R.string.env_guide_body),
+                stringResource(
+                    if (isPorter) R.string.env_guide_body_porter
+                    else R.string.env_guide_body
+                ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onErrorContainer
             )
