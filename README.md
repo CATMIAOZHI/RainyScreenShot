@@ -4,7 +4,7 @@
 
 > *"悄然记录，尽收眼底 — Silent Capture, Full Control"*
 
-基于 Shizuku shell 的 Android 截屏/录屏 APP —— 不经 MediaProjection、无系统弹窗、无状态栏摄像头指示，前台 App 完全无感知被截屏/录屏。支持快捷触发与完全自定义的截屏/录屏参数。
+基于特权 shell（Shizuku / Porter 双后端）的 Android 截屏/录屏 APP —— 不经 MediaProjection、无系统弹窗、无状态栏摄像头指示，前台 App 完全无感知被截屏/录屏。支持快捷触发与完全自定义的截屏/录屏参数。
 
 ```
 screencap/screenrecord (shell uid 2000, u:r:shell:s0)
@@ -30,6 +30,7 @@ RainyScreenShot（雨晴截屏）— Silent Screenshot & Screen Recorder · the 
 | 🎯 **区域截屏** | （阶段二）对截取结果做像素裁剪，无需 root |
 | ⏺️ **悬浮控制** | 录屏时显示半透明小控制球，点击即停；可整体隐藏，仅靠磁贴/APP 停止 |
 | 🌙 **深色模式** | 全局 Material You 自适应 |
+| 🔌 **双后端支持** | shell 通道由 Shizuku 或 Porter（Shizuku 的活跃维护 fork）提供；设置页可切换（自动 / Porter / Shizuku），自动模式优先 Porter，切换后需强制停止并重新打开生效 |
 | 🔐 **纯本地** | 零联网、零权限上报；MediaStore 私有路径产出 |
 
 ---
@@ -81,7 +82,7 @@ RainyScreenShot（雨晴截屏）— Silent Screenshot & Screen Recorder · the 
 
 **关键技术决策：**
 
-1. **shell 直调而非 Shizuku Binder API**：`screencap`/`screenrecord` 位于 `/system/bin`，shell uid 具备执行权（实测通过）。通过 `Shizuku.newProcess()`（`dev.rikka.shizuku:api`）建立持久 shell 会话，输出经 stdout 管道回传，不落公共目录。
+1. **shell 直调而非 Shizuku Binder API**：`screencap`/`screenrecord` 位于 `/system/bin`，shell uid 具备执行权（实测通过）。通过 `Shizuku.newProcess()` 建立持久 shell 会话（SDK 由 Porter 兼容层提供，`rikka.shizuku.*` API 保持兼容，支持 Shizuku / Porter 双后端），输出经 stdout 管道回传，不落公共目录。
 2. **录屏停止机制**：`screenrecord` 无 stop 参数，靠向目标进程发 `SIGINT` 完成容器 moov box 定稿（实测：进程 SIGINT → mp4 正常关闭、可播放）。通过同会话 shell 持有 pid，`kill -INT <pid>` 停止。
 3. **会话保活**：Shizuku shell 进程与 APP 进程独立，录屏期间 APP 被杀不影响录制；停止靠悬浮球/磁贴/超时三重兜底。
 4. **无前台服务的静音设计**：录屏执行体在 shell uid 中，APP 自身不持前台服务、不显示任何通知（Android 14+ 对 FGS 的强制通知因此不适用）。
@@ -94,7 +95,7 @@ RainyScreenShot（雨晴截屏）— Silent Screenshot & Screen Recorder · the 
 RainyScreenShot/
 ├── app/src/main/java/com/rainy/screenshot/
 │   ├── capture/            # 核心
-│   │   ├── ShellExecutor.kt       # Shizuku shell 会话管理（stdout/exitcode/pid）
+│   │   ├── ShellExecutor.kt       # 特权 shell（Shizuku/Porter）会话管理（stdout/exitcode/pid）
 │   │   ├── ScreenshotEngine.kt    # screencap 封装（PNG/RAW/display-id/-a）
 │   │   ├── RecordingEngine.kt     # screenrecord 封装（SIGINT 停止/超时兜底）
 │   │   └── CaptureConfig.kt       # 截屏/录屏参数模型
@@ -135,7 +136,7 @@ RainyScreenShot/
 # APK 输出：app/build/outputs/apk/debug/app-debug.apk
 ```
 
-**运行前提**：设备已激活 Shizuku（ADB 或 Root 方式），且已授权本应用。
+**运行前提**：设备已激活 Shizuku 或 Porter（ADB 或 Root 方式），并在对应服务中授权本应用。服务后端可在设置页切换（自动 / Porter / Shizuku，需强制停止并重新打开生效）。
 
 ---
 

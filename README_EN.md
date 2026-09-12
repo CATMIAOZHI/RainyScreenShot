@@ -4,7 +4,7 @@
 
 > *"Silent Capture, Full Control"*
 
-An Android screenshot & screen recording app built on Shizuku shell — no MediaProjection, no system dialogs, no status-bar recording indicator. The foreground app never knows it is being captured. Supports quick triggers and fully customizable capture parameters.
+An Android screenshot & screen recording app built on a privileged shell (dual backend: Shizuku / Porter) — no MediaProjection, no system dialogs, no status-bar recording indicator. The foreground app never knows it is being captured. Supports quick triggers and fully customizable capture parameters.
 
 ```
 screencap/screenrecord (shell uid 2000, u:r:shell:s0)
@@ -30,6 +30,7 @@ RainyScreenShot — Silent Screenshot & Screen Recorder · the Rainy Family tool
 | 🎯 **Region capture** | (Phase 2) pixel-crop the captured result, no root needed |
 | ⏺️ **Floating control** | A translucent mini control ball while recording — tap to stop; can be hidden entirely, leaving tiles/app as the only stop paths |
 | 🌙 **Dark mode** | Global Material You adaptive |
+| 🔌 **Dual backend** | The shell channel is provided by Shizuku or Porter (an actively maintained Shizuku fork); switchable in Settings (Automatic / Porter / Shizuku) — Automatic prefers Porter; force-stop and reopen to apply |
 | 🔐 **Fully local** | Zero network, zero telemetry; outputs in private app paths |
 
 ---
@@ -81,7 +82,7 @@ Conclusions from real-device testing (Shizuku shell uid 2000, `u:r:shell:s0`):
 
 **Key technical decisions:**
 
-1. **Direct shell invocation instead of Shizuku Binder APIs**: `screencap`/`screenrecord` live in `/system/bin` and shell uid can execute them (verified). A persistent shell session is established via `Shizuku.newProcess()` (`dev.rikka.shizuku:api`); output streams back over stdout pipes and never touches public storage.
+1. **Direct shell invocation instead of Shizuku Binder APIs**: `screencap`/`screenrecord` live in `/system/bin` and shell uid can execute them (verified). A persistent shell session is established via `Shizuku.newProcess()` (the SDK now ships through Porter's compatible layer while keeping the `rikka.shizuku.*` API, supporting both Shizuku and Porter backends); output streams back over stdout pipes and never touches public storage.
 2. **Stop mechanism**: `screenrecord` has no stop parameter — sending `SIGINT` to the process finalizes the mp4 moov box (verified: SIGINT → clean, playable mp4). The same shell session holds the pid; stop = `kill -INT <pid>`.
 3. **Session survival**: the Shizuku shell process is independent of the app process — killing the app mid-recording doesn't stop the capture; stop paths are the floating ball / tiles / time limit, triple-redundant.
 4. **Silent design without foreground services**: the recording body runs under shell uid, so the app itself holds no foreground service and shows no notification (Android 14+ mandatory FGS notifications therefore never apply).
@@ -94,7 +95,7 @@ Conclusions from real-device testing (Shizuku shell uid 2000, `u:r:shell:s0`):
 RainyScreenShot/
 ├── app/src/main/java/com/rainy/screenshot/
 │   ├── capture/            # Core
-│   │   ├── ShellExecutor.kt       # Shizuku shell session (stdout/exitcode/pid)
+│   │   ├── ShellExecutor.kt       # privileged shell session (Shizuku/Porter; stdout/exitcode/pid)
 │   │   ├── ScreenshotEngine.kt    # screencap wrapper (PNG/RAW/display-id/-a)
 │   │   ├── RecordingEngine.kt     # screenrecord wrapper (SIGINT stop/timeout)
 │   │   └── CaptureConfig.kt       # capture parameter models
@@ -134,7 +135,7 @@ Three languages built in — Simplified Chinese (default), Traditional Chinese, 
 # APK output: app/build/outputs/apk/debug/app-debug.apk
 ```
 
-**Runtime prerequisite**: Shizuku activated on the device (via ADB or Root) and permission granted to this app.
+**Runtime prerequisite**: Shizuku or Porter activated on the device (via ADB or Root) with permission granted to this app. The service backend can be switched in Settings (Automatic / Porter / Shizuku; force-stop and reopen to apply).
 
 ---
 
