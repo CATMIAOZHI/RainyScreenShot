@@ -252,3 +252,14 @@ $ cmd appops get com.rainy.screenshot SYSTEM_ALERT_WINDOW     # allow（生效�
 3. **尺寸口径**：磁贴图标注释/几何计算须按「含 stroke 外缘」核算（外框 r=1.6 + stroke 1.0 = 视觉半径 2.1）。仅按 path 半径核算会把贴边/熔接漏算（v5 审计实测教训：初版徽标声明 Ø4.0，视觉实为 Ø5.2 且顶部贴 viewport 边）。
 
 *实测时间：2026-09-07 · 证据来源：水晴快捷面板截图 · 磁贴图标阶段*
+## §15 Porter 原生后端集成
+
+- Porter SDK 版本：`com.github.d4rken-org.porter-api:client:0.1.0`。
+- 项目移除直接的 `dev.rikka.shizuku:api` / `dev.rikka.shizuku:provider` 依赖，改由 Porter SDK 提供兼容的 `rikka.shizuku.*` API 与 Binder 接口。
+- Manifest 同时声明 Porter 与 Shizuku 权限/包可见性，并使用 `PorterProvider` + `SelectedShizukuProvider`；保留 `${applicationId}.shizuku` authority 供 SDK 内部 Binder lookup。
+- 后端支持 `AUTO` / `PORTER` / `SHIZUKU`：
+  - `AUTO` 优先 Porter；未安装 Porter 时使用 Shizuku。
+  - 显式 `PORTER` 不会因为 Porter 停止而偷偷切到 Shizuku。
+  - 显式 `SHIZUKU` 始终使用 Shizuku。
+- `PorterClient.setBackendForNextProcess()` 只影响下一次进程启动。设置页保存成功后必须完整 force-stop 应用，再重新打开；不能通过 Activity recreation 切换正在运行的 Binder 后端。
+- 运行态仍通过 `Shizuku.pingBinder()` 判断实时连接，通过 `Shizuku.checkSelfPermission()` 判断当前选中后端的授权；Porter 选中时这些兼容调用由 Porter 接管。

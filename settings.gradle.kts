@@ -25,6 +25,9 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+            maven("https://jitpack.io") {
+                content { includeGroup("com.github.d4rken-org.porter-api") }
+            }
         if (!isCI) {
             maven("https://maven.aliyun.com/repository/google")
             maven("https://maven.aliyun.com/repository/central")

@@ -10,11 +10,9 @@
     <string name="common_share">分享</string>
     <string name="common_no_recording">目前沒有正在進行的錄影</string>
     <string name="common_unknown_error">未知錯誤</string>
-
     <!-- ═══ 磁貼標籤（快速設定面板顯示名） ═══ -->
     <string name="tile_screenshot">靜默截圖</string>
     <string name="tile_record">靜默錄影</string>
-
     <!-- ═══ 首頁 ═══ -->
     <string name="home_nav_history">歷史</string>
     <string name="home_nav_settings">設定</string>
@@ -27,7 +25,6 @@
     <string name="home_delay_toast_start">3 秒後截圖</string>
     <string name="home_delay_toast_done">延遲截圖完成</string>
     <string name="home_delay_toast_failed">延遲截圖失敗：%1$s</string>
-
     <!-- 首頁 · 快速設定圖塊卡 -->
     <string name="tile_card_title">快速設定圖塊</string>
     <string name="tile_card_desc">手動加入下拉快速設定面板；點擊圖塊自動收合面板再截圖/錄影，不會拍進面板</string>
@@ -40,18 +37,15 @@
     <string name="tile_state_env_not_ready">Shizuku 未就緒，無法操作</string>
     <string name="tile_state_added">已在快速設定中</string>
     <string name="tile_state_not_added">不在快速設定中</string>
-
     <!-- 首頁 · 懸浮球卡 -->
     <string name="ball_card_title">懸浮球</string>
     <string name="ball_card_on">已開啟 · 任意介面可截圖/錄影/預覽</string>
     <string name="ball_card_off">關閉中 · 開啟後任意介面可用</string>
     <string name="ball_card_hint">• 截圖/錄影也可用圖塊：主頁圖塊卡一鍵加入\n• 產出在歷史頁可預覽、分享</string>
     <string name="ball_card_history">看歷史產出</string>
-
     <!-- 首頁 · 環境引導卡 -->
     <string name="env_guide_title">Shizuku 環境未就緒</string>
     <string name="env_guide_body">靜默截圖/錄影依賴 Shizuku shell 權限。請：\n1. 安裝 Shizuku（moe.shizuku.privileged.api）\n2. 在 Shizuku 中透過 ADB 或 Root 啟動服務\n3. 在 Shizuku 授權列表中允許「雨晴截屏」</string>
-
     <!-- 首頁 · 狀態卡 -->
     <string name="status_recording">錄影中</string>
     <string name="status_recording_desc">目標 App 無感知 · 無狀態列指示 · %1$s</string>
@@ -60,12 +54,13 @@
     <string name="status_failed">上次操作失敗</string>
     <string name="status_idle">就緒</string>
     <string name="status_idle_desc">Shizuku shell 通道待命中</string>
-
     <!-- 首頁 · 使用說明卡 -->
     <string name="info_title">使用說明</string>
     <string name="info_body">• 截圖/錄影經 Shizuku shell 執行，不經 MediaProjection\n• 無系統彈出式視窗、無狀態列投放圖示、目標 App 無回呼\n• 快速設定圖塊可在任意介面下拉觸發（安全鎖定畫面除外）\n• 輸出儲存在 APP 私有目錄，歷史頁可預覽/分享/刪除</string>
-
     <!-- 首頁 · 錯誤映射（Toast 與狀態卡同源） -->
+    <string name="err_porter_not_installed">尚未安裝 Porter。請安裝 Porter 或選擇其他後端。</string>
+    <string name="err_porter_not_running">Porter 尚未執行。請啟動 Porter 或選擇其他後端。</string>
+    <string name="err_porter_not_granted">尚未授予 Porter 存取權。請在 Porter 中允許此應用程式。</string>
     <string name="err_shizuku_not_installed">Shizuku 未安裝，請先安裝並啟用 Shizuku</string>
     <string name="err_shizuku_not_running">Shizuku 未執行，請到 Shizuku 應用程式啟動服務</string>
     <string name="err_shizuku_not_granted">未授予本應用程式 Shizuku 權限，請在 Shizuku 中授權</string>
@@ -76,9 +71,18 @@
     <string name="err_kill_failed">停止訊號傳送失敗，錄影可能仍在進行，請重試</string>
     <string name="err_pid_locate">錄影處理程序啟動異常（無法定位處理程序），已自動清理</string>
     <string name="err_exited_unexpectedly">錄影處理程序異常退出，檔案可能不完整</string>
-
     <!-- ═══ 設定頁 ═══ -->
     <string name="settings_title">設定</string>
+    <string name="settings_backend_section">服務後端</string>
+    <string name="settings_backend_desc">選擇由 Porter 或 Shizuku 提供相容的 Shizuku API。變更後需要完整強制停止應用程式，再重新開啟。</string>
+    <string name="settings_backend_auto">自動</string>
+    <string name="settings_backend_auto_desc">優先 Porter；未安裝 Porter 時使用 Shizuku</string>
+    <string name="settings_backend_porter">Porter</string>
+    <string name="settings_backend_porter_desc">一律使用 Porter；Porter 未執行時不會自動切換到 Shizuku</string>
+    <string name="settings_backend_shizuku">Shizuku</string>
+    <string name="settings_backend_shizuku_desc">一律使用 Shizuku</string>
+    <string name="settings_backend_restart_note">已儲存。目前程序不會切換後端，請先在應用程式資訊中強制停止，再重新開啟。</string>
+    <string name="settings_backend_open_app_info">開啟應用程式資訊</string>
     <string name="settings_reset_cd">恢復預設</string>
     <string name="settings_env_section">Shizuku 環境</string>
     <string name="settings_env_installed">已安裝</string>
@@ -127,7 +131,6 @@
     <string name="settings_reset_confirm_title">恢復預設設定？</string>
     <string name="settings_reset_confirm_body">將清除全部自訂參數（錄影/截圖參數）。懸浮球開關不受影響。</string>
     <string name="settings_reset_confirm_button">恢復預設</string>
-
     <!-- ═══ 歷史頁 ═══ -->
     <string name="history_title">歷史記錄</string>
     <string name="history_empty">暫無記錄\n截圖/錄影後自動出現在這裡</string>
@@ -138,11 +141,9 @@
     <string name="history_thumb_raw">RAW 原始資料</string>
     <string name="history_thumb_image">圖片</string>
     <string name="history_share_chooser">分享 %1$s</string>
-
     <!-- ═══ 預覽頁 ═══ -->
     <string name="preview_unavailable">無法預覽（RAW 檔案或解碼失敗）</string>
     <string name="preview_play_error">播放失敗喵（錯誤 %1$d/%2$d）</string>
-
     <!-- ═══ 懸浮球 ═══ -->
     <string name="ball_menu_stop_record">■ 停止錄影</string>
     <string name="ball_menu_start_record">● 開始錄影</string>

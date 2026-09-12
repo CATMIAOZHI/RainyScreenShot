@@ -3,6 +3,7 @@ package com.rainy.screenshot.capture
 import android.content.Context
 import android.content.pm.PackageManager
 import dagger.hilt.android.qualifiers.ApplicationContext
+import eu.darken.porter.client.PorterClient
 import java.io.ByteArrayOutputStream
 import java.io.File
 import javax.inject.Inject
@@ -39,10 +40,10 @@ class ShellExecutor @Inject constructor(
     }
 
     // ─────────────────────────────────────────────
-    // 环境状态
+    // 环境状态 / Porter + Shizuku 双后端
     // ─────────────────────────────────────────────
 
-    /** Shizuku 是否已安装 */
+    /** Shizuku 是否已安装（用于显式 Shizuku 后端的发现/引导）。 */
     fun isShizukuInstalled(): Boolean {
         return try {
             appContext.packageManager.getPackageInfo(SHIZUKU_PACKAGE, 0)
@@ -52,35 +53,78 @@ class ShellExecutor @Inject constructor(
         }
     }
 
-    /** Shizuku 服务是否在运行（未授权时也返回 true） */
-    fun isShizukuRunning(): Boolean {
-        return try {
-            Shizuku.pingBinder()
-        } catch (e: IllegalStateException) {
-            false
-        }
-    }
+    /** Porter 是否已安装/可用。 */
+    fun isPorterInstalled(): Boolean =
+        runCatching { PorterClient.getPorterPackage(appContext) != null }.getOrDefault(false)
 
-    /** 本应用是否已获得 Shizuku 权限 */
-    fun isShizukuGranted(): Boolean {
-        return try {
-            Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
-        } catch (e: IllegalStateException) {
-            false // binder 未就绪
-        }
-    }
-
-    /** 环境就绪：已安装 + 已运行 + 已授权 */
-    fun isEnvironmentReady(): Boolean =
-        isShizukuInstalled() && isShizukuRunning() && isShizukuGranted()
+    /** 当前进程实际选择的后端。AUTO 会解析为当前优先使用的服务。 */
+    fun activeBackend(): ServiceBackend =
+        runCatching {
+            when (PorterClient.getActiveBackend(appContext)) {
+                PorterClient.Backend.PORTER -> ServiceBackend.PORTER
+                PorterClient.Backend.SHIZUKU -> ServiceBackend.SHIZUKU
+                PorterClient.Backend.AUTO -> ServiceBackend.AUTO
+            }
+        }.getOrDefault(ServiceBackend.AUTO)
 
     /**
-     * 请求 Shizuku 授权（Activity 上下文中调用）。
-     * 结果通过 [Shizuku.addRequestPermissionResultListener] 异步回调。
+     * 保存下一次进程启动使用的后端。
+     *
+     * Porter 官方要求该设置在非主线程调用；设置不会切换当前已初始化进程，
+     * 用户需要完整 force-stop 后重新打开应用。
+     */
+    fun setBackendForNextProcess(backend: ServiceBackend): Boolean =
+        when (backend) {
+            ServiceBackend.AUTO -> PorterClient.setBackendForNextProcess(
+                appContext, PorterClient.Backend.AUTO
+            )
+            ServiceBackend.PORTER -> PorterClient.setBackendForNextProcess(
+                appContext, PorterClient.Backend.PORTER
+            )
+            ServiceBackend.SHIZUKU -> PorterClient.setBackendForNextProcess(
+                appContext, PorterClient.Backend.SHIZUKU
+            )
+        }
+
+    /** 当前选中的服务是否已安装。 */
+    fun isSelectedBackendInstalled(): Boolean =
+        when (activeBackend()) {
+            ServiceBackend.PORTER -> isPorterInstalled()
+            ServiceBackend.SHIZUKU -> isShizukuInstalled()
+            ServiceBackend.AUTO -> isPorterInstalled() || isShizukuInstalled()
+        }
+
+    /** 当前选中的服务是否在线。pingBinder 反映的是实时连接，而非缓存授权状态。 */
+    fun isSelectedBackendRunning(): Boolean =
+        runCatching { Shizuku.pingBinder() }.getOrDefault(false)
+
+    /** 当前选中的服务是否已授权本应用。 */
+    fun isSelectedBackendGranted(): Boolean =
+        runCatching {
+            Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+        }.getOrDefault(false)
+
+    /** 当前选中的服务是否已安装、在线并授权。 */
+    fun isEnvironmentReady(): Boolean =
+        isSelectedBackendInstalled() &&
+            isSelectedBackendRunning() &&
+            isSelectedBackendGranted()
+
+    /**
+     * 请求当前选中后端的访问授权。
+     * Porter 选中时仍使用兼容的 Shizuku API，由 Porter 接管授权流程。
      */
     fun requestPermission(requestCode: Int) {
         Shizuku.requestPermission(requestCode)
     }
+
+    /** @deprecated Use [isSelectedBackendRunning]. */
+    @Deprecated("Use isSelectedBackendRunning")
+    fun isShizukuRunning(): Boolean = isSelectedBackendRunning()
+
+    /** @deprecated Use [isSelectedBackendGranted]. */
+    @Deprecated("Use isSelectedBackendGranted")
+    fun isShizukuGranted(): Boolean = isSelectedBackendGranted()
 
     // ─────────────────────────────────────────────
     // 进程创建
@@ -178,9 +222,10 @@ class ShellExecutor @Inject constructor(
      * 校验环境就绪，不满足时抛出对应可恢复异常。
      */
     private fun checkEnvironment() {
-        if (!isShizukuInstalled()) throw ShellException.NotInstalled()
-        if (!isShizukuRunning()) throw ShellException.NotRunning()
-        if (!isShizukuGranted()) throw ShellException.NotGranted()
+        val backend = activeBackend()
+        if (!isSelectedBackendInstalled()) throw ShellException.NotInstalled(backend)
+        if (!isSelectedBackendRunning()) throw ShellException.NotRunning(backend)
+        if (!isSelectedBackendGranted()) throw ShellException.NotGranted(backend)
     }
 
     /**

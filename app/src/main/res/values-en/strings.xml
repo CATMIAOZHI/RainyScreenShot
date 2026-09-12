@@ -10,11 +10,9 @@
     <string name="common_share">Share</string>
     <string name="common_no_recording">No recording in progress</string>
     <string name="common_unknown_error">Unknown error</string>
-
     <!-- ═══ Tile labels (shown in Quick Settings) ═══ -->
     <string name="tile_screenshot">Silent Screenshot</string>
     <string name="tile_record">Silent Recording</string>
-
     <!-- ═══ Home ═══ -->
     <string name="home_nav_history">History</string>
     <string name="home_nav_settings">Settings</string>
@@ -27,7 +25,6 @@
     <string name="home_delay_toast_start">Capturing in 3 seconds</string>
     <string name="home_delay_toast_done">Delayed screenshot done</string>
     <string name="home_delay_toast_failed">Delayed screenshot failed: %1$s</string>
-
     <!-- Home · Quick Settings tiles card -->
     <string name="tile_card_title">Quick Settings tiles</string>
     <string name="tile_card_desc">Add manually to the pull-down Quick Settings; tapping a tile auto-collapses the panel before capturing, so the panel never appears in the shot</string>
@@ -40,18 +37,15 @@
     <string name="tile_state_env_not_ready">Shizuku not ready</string>
     <string name="tile_state_added">In Quick Settings</string>
     <string name="tile_state_not_added">Not in Quick Settings</string>
-
     <!-- Home · Floating ball card -->
     <string name="ball_card_title">Floating ball</string>
     <string name="ball_card_on">On · capture/preview from any app</string>
     <string name="ball_card_off">Off · enable to use it anywhere</string>
     <string name="ball_card_hint">• Capture also works via tiles: add them from the home tiles card\n• Outputs are previewable and shareable on the History page</string>
     <string name="ball_card_history">View history</string>
-
     <!-- Home · Environment guide card -->
     <string name="env_guide_title">Shizuku not ready</string>
     <string name="env_guide_body">Silent capture requires Shizuku shell permission. Please:\n1. Install Shizuku (moe.shizuku.privileged.api)\n2. Start its service via ADB or Root\n3. Grant permission to “Rainy Screenshot” in Shizuku</string>
-
     <!-- Home · Status card -->
     <string name="status_recording">Recording</string>
     <string name="status_recording_desc">Invisible to the target app · No status-bar indicator · %1$s</string>
@@ -60,12 +54,13 @@
     <string name="status_failed">Last action failed</string>
     <string name="status_idle">Ready</string>
     <string name="status_idle_desc">Shizuku shell channel standing by</string>
-
     <!-- Home · Info card -->
     <string name="info_title">How it works</string>
     <string name="info_body">• Capture runs through Shizuku shell, not MediaProjection\n• No system dialogs, no cast icon in the status bar, no callbacks to the target app\n• Quick Settings tiles work anywhere (except on the secure lock screen)\n• Outputs are stored in private app storage; preview/share/delete on the History page</string>
-
     <!-- Home · Error mapping (shared by Toast and status card) -->
+    <string name="err_porter_not_installed">Porter is not installed. Install Porter or choose another backend.</string>
+    <string name="err_porter_not_running">Porter is not running. Start Porter or choose another backend.</string>
+    <string name="err_porter_not_granted">Porter access has not been granted. Approve this app in Porter.</string>
     <string name="err_shizuku_not_installed">Shizuku is not installed. Install and activate Shizuku first</string>
     <string name="err_shizuku_not_running">Shizuku is not running. Start the service in the Shizuku app</string>
     <string name="err_shizuku_not_granted">Shizuku permission not granted for this app. Grant it in Shizuku</string>
@@ -76,9 +71,18 @@
     <string name="err_kill_failed">Failed to send the stop signal; recording may continue. Please retry</string>
     <string name="err_pid_locate">Recording process failed to start (process not located); cleaned up automatically</string>
     <string name="err_exited_unexpectedly">Recording process exited unexpectedly; the file may be incomplete</string>
-
     <!-- ═══ Settings ═══ -->
     <string name="settings_title">Settings</string>
+    <string name="settings_backend_section">Service backend</string>
+    <string name="settings_backend_desc">Choose whether the compatible Shizuku API is provided by Porter or Shizuku. Fully force-stop and reopen the app after changing this setting.</string>
+    <string name="settings_backend_auto">Automatic</string>
+    <string name="settings_backend_auto_desc">Prefer Porter; use Shizuku if Porter is not installed</string>
+    <string name="settings_backend_porter">Porter</string>
+    <string name="settings_backend_porter_desc">Always use Porter; do not silently fall back to Shizuku if Porter is stopped</string>
+    <string name="settings_backend_shizuku">Shizuku</string>
+    <string name="settings_backend_shizuku_desc">Always use Shizuku</string>
+    <string name="settings_backend_restart_note">Saved. The current process will not switch backends. Force-stop the app from App info, then reopen it.</string>
+    <string name="settings_backend_open_app_info">Open App info</string>
     <string name="settings_reset_cd">Reset to defaults</string>
     <string name="settings_env_section">Shizuku environment</string>
     <string name="settings_env_installed">Installed</string>
@@ -127,7 +131,6 @@
     <string name="settings_reset_confirm_title">Reset to defaults?</string>
     <string name="settings_reset_confirm_body">All custom parameters (recording/screenshot options) will be cleared. The floating ball switch is not affected.</string>
     <string name="settings_reset_confirm_button">Reset</string>
-
     <!-- ═══ History ═══ -->
     <string name="history_title">History</string>
     <string name="history_empty">Nothing yet\nCaptures will appear here automatically</string>
@@ -138,11 +141,9 @@
     <string name="history_thumb_raw">RAW data</string>
     <string name="history_thumb_image">Image</string>
     <string name="history_share_chooser">Share %1$s</string>
-
     <!-- ═══ Preview ═══ -->
     <string name="preview_unavailable">Can’t preview (RAW file or decode failure)</string>
     <string name="preview_play_error">Playback failed (error %1$d/%2$d)</string>
-
     <!-- ═══ Floating ball ═══ -->
     <string name="ball_menu_stop_record">■ Stop recording</string>
     <string name="ball_menu_start_record">● Start recording</string>
