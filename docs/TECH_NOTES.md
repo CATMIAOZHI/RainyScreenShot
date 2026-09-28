@@ -254,12 +254,13 @@ $ cmd appops get com.rainy.screenshot SYSTEM_ALERT_WINDOW     # allow（生效�
 *实测时间：2026-09-07 · 证据来源：水晴快捷面板截图 · 磁贴图标阶段*
 ## §15 Porter 原生后端集成
 
-- Porter SDK 版本：`com.github.d4rken-org.porter-api:client:0.1.0`。
-- 项目移除直接的 `dev.rikka.shizuku:api` / `dev.rikka.shizuku:provider` 依赖，改由 Porter SDK 提供兼容的 `rikka.shizuku.*` API 与 Binder 接口。
-- Manifest 同时声明 Porter 与 Shizuku 权限/包可见性，并使用 `PorterProvider` + `SelectedShizukuProvider`；保留 `${applicationId}.shizuku` authority 供 SDK 内部 Binder lookup。
-- 后端支持 `AUTO` / `PORTER` / `SHIZUKU`：
+- Porter SDK 版本：`com.github.d4rken-org.porter-api:shizuku-bridge:0.8.0`（JitPack），另加上游 `dev.rikka.shizuku:provider:13.1.5`。
+- Shizuku-API 桥接：`PorterShizukuBridge.start()` 把 Porter 连接交给 `rikka.shizuku.Shizuku` 作为服务 Binder，项目里的 `rikka.shizuku.*` 调用与 `IShizukuService.newProcess`（RemoteProcessAdapter）原样工作。未安装 Porter 时，上游 `ShizukuProvider` 照常接收 Shizuku 服务的 Binder。
+- Manifest：Porter 的权限、包可见性与 Provider 由 SDK 合并；Shizuku 用上游 `rikka.shizuku.ShizukuProvider`（`${applicationId}.shizuku`）。
+- 后端支持 `AUTO` / `PORTER` / `SHIZUKU`，偏好沿用 SDK 0.1.0 的 SharedPreferences（`porter.client` / `backend`），升级后选择不变：
   - `AUTO` 优先 Porter；未安装 Porter 时使用 Shizuku。
-  - 显式 `PORTER` 不会因为 Porter 停止而偷偷切到 Shizuku。
-  - 显式 `SHIZUKU` 始终使用 Shizuku。
-- `PorterClient.setBackendForNextProcess()` 只影响下一次进程启动。设置页保存成功后必须完整 force-stop 应用，再重新打开；不能通过 Activity recreation 切换正在运行的 Binder 后端。
-- 运行态仍通过 `Shizuku.pingBinder()` 判断实时连接，通过 `Shizuku.checkSelfPermission()` 判断当前选中后端的授权；Porter 选中时这些兼容调用由 Porter 接管。
+  - 显式 `PORTER` 不会因为 Porter 停止而偷偷切到 Shizuku：`rikka.shizuku.Shizuku` 持有的不是桥接的进程内 Binder 时视为未运行、未授权，也不发授权请求。
+  - 显式 `SHIZUKU` 不启动桥接，始终使用 Shizuku。
+- 实际后端在进程内首次使用时解析一次并固定（AUTO：装了 Porter 即 Porter，否则 Shizuku），`Application.onCreate` 据此决定是否启动桥接；设置页保存后必须完整 force-stop 应用，再重新打开。
+- 录制会话恢复（App 被杀后收养仍在运行的 screenrecord）在服务 Binder 首次就绪时执行一次：Binder 在进程启动后才异步送达，`Application.onCreate` 时通常尚未就绪。
+- 运行态仍通过 `Shizuku.pingBinder()` 判断实时连接，通过 `Shizuku.checkSelfPermission()` 判断授权；Porter 选中时这些调用由桥接转给 Porter。

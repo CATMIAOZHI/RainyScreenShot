@@ -2,16 +2,20 @@ package com.rainy.screenshot
 
 import android.app.Application
 import com.rainy.screenshot.capture.ScreenshotEngine
+import com.rainy.screenshot.capture.ServiceBackend
 import com.rainy.screenshot.capture.ShellExecutor
 import com.rainy.screenshot.data.local.SettingsStore
 import com.rainy.screenshot.session.RecordingSessionManager
 import dagger.hilt.android.HiltAndroidApp
+import eu.darken.porter.bridge.PorterShizukuBridge
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import rikka.shizuku.Shizuku
 
 /**
  * RainyScreenShot 入口 Application。
@@ -41,10 +45,22 @@ class RainyScreenShotApplication : Application() {
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
+    private val restoreStarted = AtomicBoolean(false)
+
     override fun onCreate() {
         super.onCreate()
+        // Porter 连接经 Porter SDK 的 Shizuku-API 桥接交给 rikka.shizuku.Shizuku；本进程解析为
+        // Shizuku（设置页选 Shizuku，或 AUTO 下未装 Porter）时不启动桥接，只用 Shizuku 服务
+        if (shellExecutor.activeBackend() != ServiceBackend.SHIZUKU) {
+            PorterShizukuBridge.start(appScope)
+        }
         // 恢复上次未收尾的录制会话（如有）
-        appScope.launch { runCatching { recordingSessionManager.restore() } }
+        // 服务 Binder 在进程启动后才异步送达（Porter 桥接 / ShizukuProvider），首次就绪时恢复一次
+        Shizuku.addBinderReceivedListenerSticky {
+            if (shellExecutor.isEnvironmentReady() && restoreStarted.compareAndSet(false, true)) {
+                appScope.launch { runCatching { recordingSessionManager.restore() } }
+            }
+        }
         // 悬浮球自动恢复：开关开着就拉起服务（不必再进设置页手动开）。
         // 权限优先经 Shizuku 静默授予（§12 实测：appops set 可绕系统设置页），
         // 授予有失败/延迟也不阻断——服务侧 addView 重试机制兜底（见

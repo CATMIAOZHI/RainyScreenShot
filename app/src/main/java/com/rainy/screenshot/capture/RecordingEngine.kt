@@ -13,6 +13,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 
 /**
@@ -128,9 +129,13 @@ class RecordingEngine @Inject constructor(
             append(" 1>/dev/null 2>&1 &")
         }
 
+        // 桥接下 newProcess 会阻塞等待 Porter shell 服务进程启动（首次/服务死亡后），不能在主线程调用；
+        // 取消时结果会被丢弃，先记下已启动的进程以便收尾（同 B4）
+        var started: Process? = null
         val shProcess = try {
-            shellExecutor.newProcess(bgCmd)
-        } catch (e: ShellException) {
+            withContext(Dispatchers.IO) { shellExecutor.newProcess(bgCmd).also { started = it } }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            runCatching { started?.destroy() }
             throw e
         }
 

@@ -1,6 +1,5 @@
 package com.rainy.screenshot
 
-import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -60,12 +59,10 @@ class MainActivity : AppCompatActivity() {
      * - Shizuku 未运行 / 未安装 → 静默跳过（首页 EnvGuideCard 会引导）。
      */
     private fun registerShizukuPermissionRequest() {
-        val running = runCatching { Shizuku.pingBinder() }.getOrDefault(false)
+        val running = shellExecutor.isSelectedBackendRunning()
         if (!running) return
 
-        val granted = runCatching {
-            Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
-        }.getOrDefault(false)
+        val granted = shellExecutor.isSelectedBackendGranted()
         if (granted) return
 
         // 注册结果监听（回调线程为主线程，安全更新 UI）

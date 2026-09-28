@@ -3,7 +3,6 @@ package com.rainy.screenshot.capture
 import android.content.Context
 import android.content.pm.PackageManager
 import dagger.hilt.android.qualifiers.ApplicationContext
-import eu.darken.porter.client.PorterClient
 import java.io.ByteArrayOutputStream
 import java.io.File
 import javax.inject.Inject
@@ -35,6 +34,16 @@ class ShellExecutor @Inject constructor(
         /** Shizuku APK 包名 */
         private const val SHIZUKU_PACKAGE = "moe.shizuku.privileged.api"
 
+        /** Porter APK 包名 */
+        private const val PORTER_PACKAGE = "eu.darken.porter"
+
+        /** 后端偏好存储：沿用 Porter SDK 0.1.0 的文件/键/取值（AUTO/PORTER/SHIZUKU），升级用户的选择原样保留 */
+        private const val PREFS = "porter.client"
+        private const val KEY_BACKEND = "backend"
+
+        /** 上游 IShizukuService 的 Binder 描述符（AIDL 固定字符串，不随混淆变化） */
+        private const val SHIZUKU_SERVICE_DESCRIPTOR = "moe.shizuku.server.IShizukuService"
+
         /** 任务栏/面板操作命令超时（settings/cmd 本地操作，5s 足够） */
         private const val TILE_OP_TIMEOUT_MS = 5_000L
     }
@@ -53,48 +62,50 @@ class ShellExecutor @Inject constructor(
         }
     }
 
-    /** Porter 是否已安装/可用。 */
-    fun isPorterInstalled(): Boolean =
-        runCatching { PorterClient.getPorterPackage(appContext) != null }.getOrDefault(false)
+    /** Porter 是否已安装。 */
+    fun isPorterInstalled(): Boolean {
+        return try {
+            appContext.packageManager.getPackageInfo(PORTER_PACKAGE, 0)
+            true
+        } catch (e: PackageManager.NameNotFoundException) {
+            false
+        }
+    }
 
-    /** 当前进程实际选择的后端。AUTO 会解析为当前优先使用的服务。 */
-    fun activeBackend(): ServiceBackend =
-        runCatching {
-            when (PorterClient.getActiveBackend(appContext)) {
-                PorterClient.Backend.PORTER -> ServiceBackend.PORTER
-                PorterClient.Backend.SHIZUKU -> ServiceBackend.SHIZUKU
-                PorterClient.Backend.AUTO -> ServiceBackend.AUTO
-            }
-        }.getOrDefault(ServiceBackend.AUTO)
+    /**
+     * 本进程使用的后端：首次调用时解析一次并固定（Application.onCreate 据此决定是否启动桥接），
+     * 保存的新偏好、运行中安装/卸载 Porter 都到下次进程启动才生效。
+     */
+    private val processBackend: ServiceBackend by lazy {
+        when (preferredBackend()) {
+            ServiceBackend.PORTER -> ServiceBackend.PORTER
+            ServiceBackend.SHIZUKU -> ServiceBackend.SHIZUKU
+            ServiceBackend.AUTO ->
+                if (isPorterInstalled()) ServiceBackend.PORTER else ServiceBackend.SHIZUKU
+        }
+    }
+
+    /** 当前进程实际使用的后端。AUTO 会解析为进程启动时优先使用的服务。 */
+    fun activeBackend(): ServiceBackend = processBackend
 
     /** 用户保存的后端偏好（设置页选择器展示用）；AUTO 表示未指定（默认自动）。 */
     fun preferredBackend(): ServiceBackend =
         runCatching {
-            when (PorterClient.getPreferredBackend(appContext)) {
-                PorterClient.Backend.PORTER -> ServiceBackend.PORTER
-                PorterClient.Backend.SHIZUKU -> ServiceBackend.SHIZUKU
-                PorterClient.Backend.AUTO -> ServiceBackend.AUTO
-            }
+            ServiceBackend.valueOf(backendPrefs.getString(KEY_BACKEND, null) ?: ServiceBackend.AUTO.name)
         }.getOrDefault(ServiceBackend.AUTO)
 
     /**
      * 保存下一次进程启动使用的后端。
      *
-     * Porter 官方要求该设置在非主线程调用；设置不会切换当前已初始化进程，
+     * 是否把 Porter 接入 Shizuku API 在 Application.onCreate 时决定（选 Shizuku 时
+     * 不启动 Porter 桥接），设置不会切换当前已初始化进程，
      * 用户需要完整 force-stop 后重新打开应用。
      */
     fun setBackendForNextProcess(backend: ServiceBackend): Boolean =
-        when (backend) {
-            ServiceBackend.AUTO -> PorterClient.setBackendForNextProcess(
-                appContext, PorterClient.Backend.AUTO
-            )
-            ServiceBackend.PORTER -> PorterClient.setBackendForNextProcess(
-                appContext, PorterClient.Backend.PORTER
-            )
-            ServiceBackend.SHIZUKU -> PorterClient.setBackendForNextProcess(
-                appContext, PorterClient.Backend.SHIZUKU
-            )
-        }
+        backendPrefs.edit().putString(KEY_BACKEND, backend.name).commit()
+
+    private val backendPrefs
+        get() = appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     /** 当前选中的服务是否已安装。 */
     fun isSelectedBackendInstalled(): Boolean =
@@ -104,14 +115,26 @@ class ShellExecutor @Inject constructor(
             ServiceBackend.AUTO -> isPorterInstalled() || isShizukuInstalled()
         }
 
+    /**
+     * rikka.shizuku.Shizuku 当前持有的是否为 Porter 桥接的进程内 Binder。
+     * Shizuku 服务经 ShizukuProvider 送来的是远端代理，查不到本地接口。
+     */
+    private fun isPorterBridgeHeld(): Boolean =
+        Shizuku.getBinder()?.queryLocalInterface(SHIZUKU_SERVICE_DESCRIPTOR) != null
+
+    /** 选中 Porter 时只认桥接交给 Shizuku API 的 Binder；桥接接管前 Shizuku 服务的 Binder 不算。 */
+    private fun isSelectedBinderHeld(): Boolean =
+        activeBackend() != ServiceBackend.PORTER || isPorterBridgeHeld()
+
     /** 当前选中的服务是否在线。pingBinder 反映的是实时连接，而非缓存授权状态。 */
     fun isSelectedBackendRunning(): Boolean =
-        runCatching { Shizuku.pingBinder() }.getOrDefault(false)
+        runCatching { isSelectedBinderHeld() && Shizuku.pingBinder() }.getOrDefault(false)
 
     /** 当前选中的服务是否已授权本应用。 */
     fun isSelectedBackendGranted(): Boolean =
         runCatching {
-            Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+            isSelectedBinderHeld() &&
+                Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
         }.getOrDefault(false)
 
     /** 当前选中的服务是否已安装、在线并授权。 */
@@ -125,6 +148,8 @@ class ShellExecutor @Inject constructor(
      * Porter 选中时仍使用兼容的 Shizuku API，由 Porter 接管授权流程。
      */
     fun requestPermission(requestCode: Int) {
+        // 选中 Porter 但桥接尚未接管时，不把授权请求发给 Shizuku 服务（与无 Binder 时同样抛 IllegalStateException）
+        check(isSelectedBinderHeld()) { "Porter bridge not ready" }
         Shizuku.requestPermission(requestCode)
     }
 
