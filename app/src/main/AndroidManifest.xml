@@ -7,11 +7,10 @@
         权限策略（隐身性 + 最小权限优先）：
         - 无前台服务、无通知 → 不申请 POST_NOTIFICATIONS / FGS_*
         - SYSTEM_ALERT_WINDOW 仅悬浮控制球使用（阶段 2 交付时申请）
-        - Porter/Shizuku 各声明一条 API_V23 权限（双后端集成要求）；运行时授权仍经 Provider 动态申请
+        - Porter 权限由 Porter SDK 合并，Shizuku 声明 API_V23 权限；运行时授权仍经 Provider 动态申请
         - 不申请任何与本项目无关的权限
     -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    <uses-permission android:name="eu.darken.porter.permission.API_V23" />
     <uses-permission android:name="moe.shizuku.manager.permission.API_V23" />
 
     <queries>
@@ -73,18 +72,9 @@
                 android:value="true" />
         </service>
 
-        <!-- Porter/Shizuku 双后端 Provider；.shizuku authority 必须保留供 SDK 内部 Binder lookup -->
+        <!-- Shizuku Provider（未装 Porter 时接收 Shizuku 服务的 Binder）；Porter 的 Provider 由 SDK 合并 -->
         <provider
             android:name="rikka.shizuku.ShizukuProvider"
-            tools:node="remove" />
-        <provider
-            android:name="eu.darken.porter.client.PorterProvider"
-            android:authorities="${applicationId}.porter"
-            android:exported="true"
-            android:multiprocess="false"
-            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
-        <provider
-            android:name="eu.darken.porter.client.SelectedShizukuProvider"
             android:authorities="${applicationId}.shizuku"
             android:exported="true"
             android:multiprocess="false"

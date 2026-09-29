@@ -18,7 +18,8 @@ navigationCompose = "2.9.8"
 datastorePreferences = "1.1.1"
 
 # Shizuku
-porterApi = "0.1.0"
+porterApi = "0.8.0"
+shizukuApi = "13.1.5"
 
 # DI
 hilt = "2.59.2"
@@ -59,7 +60,8 @@ androidx-navigation-compose = { group = "androidx.navigation", name = "navigatio
 androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastorePreferences" }
 
 # Shizuku
-porter-client = { group = "com.github.d4rken-org.porter-api", name = "client", version.ref = "porterApi" }
+porter-shizuku-bridge = { group = "com.github.d4rken-org.porter-api", name = "shizuku-bridge", version.ref = "porterApi" }
+shizuku-provider = { group = "dev.rikka.shizuku", name = "provider", version.ref = "shizukuApi" }
 
 # DI
 hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
