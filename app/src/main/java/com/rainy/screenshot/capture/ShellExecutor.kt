@@ -12,6 +12,7 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import rikka.shizuku.Shizuku
+import rikka.shizuku.ShizukuProvider
 
 /**
  * Shizuku shell 执行器 —— capture 层基石。
@@ -31,7 +32,7 @@ class ShellExecutor @Inject constructor(
         /** 截屏命令默认超时（screencap 单帧操作，10s 足够） */
         const val SCREENSHOT_TIMEOUT_MS = 10_000L
 
-        /** Shizuku APK 包名 */
+        /** 原版 Shizuku APK 包名（stealth/隐藏版会换成随机包名，此处仅作探测兜底） */
         private const val SHIZUKU_PACKAGE = "moe.shizuku.privileged.api"
 
         /** Porter APK 包名 */
@@ -52,15 +53,36 @@ class ShellExecutor @Inject constructor(
     // 环境状态 / Porter + Shizuku 双后端
     // ─────────────────────────────────────────────
 
-    /** Shizuku 是否已安装（用于显式 Shizuku 后端的发现/引导）。 */
-    fun isShizukuInstalled(): Boolean {
-        return try {
-            appContext.packageManager.getPackageInfo(SHIZUKU_PACKAGE, 0)
-            true
-        } catch (e: PackageManager.NameNotFoundException) {
-            false
+    /**
+     * 探测 Shizuku 管理器 APK 的包名（issue #3：兼容改名/隐藏版）。
+     *
+     * 社区 fork 的 stealth mode（隐藏 Shizuku）把管理器重新打包成随机包名，但只改
+     * applicationId / provider authorities，APK 声明的 API_V23 权限名不变——
+     * 因此改用「权限归属包」反查：未改名版返回 moe.shizuku.privileged.api，隐藏版返回新包名。
+     * getPermissionInfo 不受 Android 11+ 包可见性过滤影响（Shizuku fork 官方给开发者的
+     * 修复片段与 Porter SDK 的 PorterClient.getPorterPackage 用的都是这一套路）。
+     * 兜底：权限查询在个别 ROM 上不可用时，退回硬编码包名探测（覆盖未改名版）。
+     *
+     * 注意：不要再拿返回的包名去 getPackageInfo() 复核——隐藏版不在 <queries> 里，
+     * 必然 NameNotFoundException。
+     *
+     * @return 管理器包名；未安装返回 null
+     */
+    private fun detectShizukuPackage(): String? {
+        val pm = appContext.packageManager
+        val owner = runCatching {
+            pm.getPermissionInfo(ShizukuProvider.PERMISSION, 0).packageName
+        }.getOrNull()
+        if (!owner.isNullOrBlank()) return owner
+        return if (runCatching { pm.getPackageInfo(SHIZUKU_PACKAGE, 0) }.isSuccess) {
+            SHIZUKU_PACKAGE
+        } else {
+            null
         }
     }
+
+    /** Shizuku 是否已安装（显式 Shizuku 后端的发现/引导；改名/隐藏版同样可识别）。 */
+    fun isShizukuInstalled(): Boolean = detectShizukuPackage() != null
 
     /** Porter 是否已安装。 */
     fun isPorterInstalled(): Boolean {

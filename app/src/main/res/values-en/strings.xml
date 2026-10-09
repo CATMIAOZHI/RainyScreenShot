@@ -46,7 +46,7 @@
     <!-- Home · Environment guide card -->
     <string name="env_guide_title">Shizuku not ready</string>
     <string name="env_guide_title_porter">Porter not ready</string>
-    <string name="env_guide_body">Silent capture requires Shizuku shell permission. Please:\n1. Install Shizuku (moe.shizuku.privileged.api)\n2. Start its service via ADB or Root\n3. Grant permission to “Rainy Screenshot” in Shizuku</string>
+    <string name="env_guide_body">Silent capture requires Shizuku shell permission. Please:\n1. Install Shizuku\n2. Start its service via ADB or Root\n3. Grant permission to “Rainy Screenshot” in Shizuku</string>
     <string name="env_guide_body_porter">Silent capture requires Porter shell permission. Please:\n1. Install Porter (eu.darken.porter)\n2. Start its service via ADB or Root in Porter\n3. Grant permission to “Rainy Screenshot” in Porter</string>
     <!-- Home · Status card -->
     <string name="status_recording">Recording</string>

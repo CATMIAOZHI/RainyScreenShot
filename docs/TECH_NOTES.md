@@ -264,3 +264,16 @@ $ cmd appops get com.rainy.screenshot SYSTEM_ALERT_WINDOW     # allow（生效�
 - 实际后端在进程内首次使用时解析一次并固定（AUTO：装了 Porter 即 Porter，否则 Shizuku），`Application.onCreate` 据此决定是否启动桥接；设置页保存后必须完整 force-stop 应用，再重新打开。
 - 录制会话恢复（App 被杀后收养仍在运行的 screenrecord）在服务 Binder 首次就绪时执行一次：Binder 在进程启动后才异步送达，`Application.onCreate` 时通常尚未就绪。
 - 运行态仍通过 `Shizuku.pingBinder()` 判断实时连接，通过 `Shizuku.checkSelfPermission()` 判断授权；Porter 选中时这些调用由桥接转给 Porter。
+## §16 Shizuku stealth（改名/隐藏）版的识别（2026-10-09 · issue #3 修复）
+**背景**：社区 fork `thedjchi/Shizuku` 的 stealth mode（隐藏 Shizuku）把管理器重新打包成**随机包名**，以避免银行类 App 检测。改包名时只改 `applicationId` 与 provider authorities，**APK 声明的权限名不变**。原实现用 `getPackageInfo("moe.shizuku.privileged.api")` 判定「已安装」，对改名版必然失败 → 误报「Shizuku 未安装」→ 首页引导卡、磁贴、静默截屏/录屏全链路拒绝启动（用户已在 Shizuku 内授权也没用）。
+
+**实测与核实依据**：
+- 本机 `dumpsys package permissions` 实测：`moe.shizuku.manager.permission.API_V23` 的 `sourcePackage` = 声明该权限的 APK 包名（本机 = `moe.shizuku.privileged.api`，`prot=dangerous`）。改名后该值即新包名。（取证只用 dumpsys：Android 16 上 `pm list permissions -f` 并不列出该权限。）
+- fork 源码 `manager/.../stealth/StealthTutorialActivity.kt` 内置给第三方开发者的修复片段，正是 `packageManager.getPermissionInfo(ShizukuProvider.PERMISSION, 0)`；`ApkUtils.changePackageName` 不动 `<permission>` 名。
+- Porter 旧版 client **0.1.0** 的 `PorterClient.getPorterPackage()` 是同款实现（`getPermissionInfo("eu.darken.porter.permission.API_V23", 0).packageName`，字节码已核实；本项目现用的 0.8.0 bridge 不走该入口）。
+- 包可见性实测（run-as + app_process 探针，借用本机 debuggable 旧版 APK 的 uid）：未在 `<queries>` 中的包查不到（`com.rainyscanner.app → 不可见`），说明硬编码 / `<queries>` 路线对改名版**永远无效**；`getPermissionInfo` 不受该过滤（由 Porter 生产实现与 fork 官方推荐佐证；本机隐藏 API 受限，未能直接实测该断言）。
+
+**实现**（`ShellExecutor.detectShizukuPackage`）：权限归属包优先，`getPackageInfo(SHIZUKU_PACKAGE)` 兜底（覆盖个别 ROM 权限查询不可用的情况，退化为旧行为）；`isShizukuInstalled()` 签名不变，调用方零改动。**不做缓存**（避免运行中卸载 / 切换隐藏版时状态失真）。返回的包名**不得**再喂给 `getPackageInfo()` 复核——改名版不在 `<queries>` 里，必然 `NameNotFoundException`。
+
+**尚未覆盖**：`isPorterInstalled()` 仍是硬编码包名（Porter 无改名场景，且 `AUTO` 分支语义依赖它，本次不动）；引导文案已删除写死的 Shizuku 包名，避免改名版用户困惑。
+*实测时间：2026-10-09 · 证据来源：本机 pm/dumpsys 输出 + javap + fork 源码 + run-as 探针*
